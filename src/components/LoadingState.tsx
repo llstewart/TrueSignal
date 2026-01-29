@@ -27,7 +27,7 @@ export function LoadingState({ message = 'Loading...', progress }: LoadingStateP
   );
 }
 
-export function LoadingSpinner({ size = 'md' }: { size?: 'sm' | 'md' | 'lg' }) {
+export function LoadingSpinner({ size = 'md', className = '' }: { size?: 'sm' | 'md' | 'lg', className?: string }) {
   const sizeClasses = {
     sm: 'w-4 h-4 border-2',
     md: 'w-8 h-8 border-3',
@@ -36,7 +36,7 @@ export function LoadingSpinner({ size = 'md' }: { size?: 'sm' | 'md' | 'lg' }) {
 
   return (
     <div
-      className={`${sizeClasses[size]} border-muted rounded-full animate-spin border-t-primary`}
+      className={`${sizeClasses[size]} border-white/20 rounded-full animate-spin border-t-current ${className}`}
     />
   );
 }

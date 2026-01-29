@@ -97,12 +97,12 @@ function saveRecentItem(key: string, item: string) {
     const filtered = items.filter(i => i.toLowerCase() !== item.toLowerCase());
     const updated = [item, ...filtered].slice(0, MAX_RECENT_ITEMS);
     localStorage.setItem(key, JSON.stringify(updated));
-  } catch {}
+  } catch { }
 }
 
 function clearRecentItems(key: string) {
   if (typeof window === 'undefined') return;
-  try { localStorage.removeItem(key); } catch {}
+  try { localStorage.removeItem(key); } catch { }
 }
 
 interface SearchFormProps {
@@ -121,11 +121,11 @@ export function SearchForm({ onSearch, isLoading, initialNiche = '', initialLoca
   const [showCountryPicker, setShowCountryPicker] = useState(false);
   const [recentNiches, setRecentNiches] = useState<string[]>([]);
   const [showNicheSuggestions, setShowNicheSuggestions] = useState(false);
-  const [nicheFocused, setNicheFocused] = useState(false);
-  const [cityFocused, setCityFocused] = useState(false);
+  const [activeField, setActiveField] = useState<'niche' | 'location' | null>(null);
 
   const countryPickerRef = useRef<HTMLDivElement>(null);
   const nicheInputRef = useRef<HTMLDivElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
     if (initialLocation) {
@@ -147,13 +147,24 @@ export function SearchForm({ onSearch, isLoading, initialNiche = '', initialLoca
     if (initialNiche) setNiche(initialNiche);
   }, [initialNiche]);
 
+  const [showRegionPicker, setShowRegionPicker] = useState(false);
+  const [regionSearch, setRegionSearch] = useState('');
+  const regionPickerRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (countryPickerRef.current && !countryPickerRef.current.contains(event.target as Node)) {
         setShowCountryPicker(false);
       }
+      if (regionPickerRef.current && !regionPickerRef.current.contains(event.target as Node)) {
+        setShowRegionPicker(false);
+      }
       if (nicheInputRef.current && !nicheInputRef.current.contains(event.target as Node)) {
         setShowNicheSuggestions(false);
+      }
+      // Click outside form resets active field visual state
+      if (formRef.current && !formRef.current.contains(event.target as Node)) {
+        setActiveField(null);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -163,6 +174,7 @@ export function SearchForm({ onSearch, isLoading, initialNiche = '', initialLoca
   const regions = getRegionsForCountry(country);
   const regionPlaceholder = getRegionPlaceholder(country);
   const selectedCountry = COUNTRIES.find(c => c.code === country);
+  const selectedRegion = regions.find(r => r.code === region);
 
   const getLocationString = () => {
     if (country === 'OTHER') return freeformLocation.trim();
@@ -182,9 +194,9 @@ export function SearchForm({ onSearch, isLoading, initialNiche = '', initialLoca
 
   const filteredNiches = niche.length > 0
     ? recentNiches.filter(item =>
-        item.toLowerCase().includes(niche.toLowerCase()) &&
-        item.toLowerCase() !== niche.toLowerCase()
-      ).slice(0, 5)
+      item.toLowerCase().includes(niche.toLowerCase()) &&
+      item.toLowerCase() !== niche.toLowerCase()
+    ).slice(0, 5)
     : recentNiches.slice(0, 5);
 
   const isFormValid = niche.trim() && (
@@ -192,37 +204,55 @@ export function SearchForm({ onSearch, isLoading, initialNiche = '', initialLoca
   );
 
   return (
-    <form onSubmit={handleSubmit} className="w-full max-w-3xl mx-auto">
-      <div className="space-y-3">
-        {/* Niche Input */}
-        <div ref={nicheInputRef} className="relative">
-          <input
-            type="text"
-            value={niche}
-            onChange={(e) => {
-              setNiche(e.target.value);
-              setShowNicheSuggestions(true);
-            }}
-            onFocus={() => {
-              setShowNicheSuggestions(true);
-              setNicheFocused(true);
-            }}
-            onBlur={() => setNicheFocused(false)}
-            placeholder="What type of business?"
-            className={`w-full px-5 py-4 text-[15px] bg-zinc-900/50 text-white border rounded-xl placeholder:text-zinc-500 transition-all duration-200 outline-none ${
-              nicheFocused
-                ? 'border-violet-500/50 bg-zinc-900/80 shadow-lg shadow-violet-500/10'
-                : 'border-zinc-800 hover:border-zinc-700'
-            }`}
-            disabled={isLoading}
-            autoComplete="off"
-          />
+    <form
+      ref={formRef}
+      onSubmit={handleSubmit}
+      className="w-full max-w-4xl mx-auto relative z-20"
+    >
+      <div className={`
+        relative flex flex-col md:flex-row items-stretch md:items-center
+        bg-[#18181b] border border-zinc-800
+        rounded-2xl transition-all duration-300
+        ${activeField ? 'shadow-2xl shadow-primary/5 border-primary/30 ring-1 ring-primary/30' : 'hover:border-zinc-700 shadow-xl shadow-black/20'}
+      `}>
+
+        {/* Niche Section */}
+        <div
+          ref={nicheInputRef}
+          className="relative flex-1 group"
+        >
+          <div className="px-6 py-4 md:py-5 flex flex-col justify-center h-full rounded-t-2xl md:rounded-l-2xl md:rounded-tr-none transition-colors">
+            <label className={`text-xs font-medium mb-1 block uppercase tracking-wider transition-colors ${activeField === 'niche' ? 'text-primary' : 'text-zinc-500'}`}>
+              Target Niche
+            </label>
+            <div className="flex items-center">
+              <svg className={`w-4 h-4 mr-3 transition-colors ${activeField === 'niche' ? 'text-primary' : 'text-zinc-600'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <input
+                type="text"
+                value={niche}
+                onChange={(e) => {
+                  setNiche(e.target.value);
+                  setShowNicheSuggestions(true);
+                }}
+                onFocus={() => {
+                  setActiveField('niche');
+                  setShowNicheSuggestions(true);
+                }}
+                placeholder="Ex. Dentist, Roofers..."
+                className="w-full bg-transparent outline-none text-zinc-100 placeholder:text-zinc-600 font-medium"
+                disabled={isLoading}
+                autoComplete="off"
+              />
+            </div>
+          </div>
 
           {/* Recent niches dropdown */}
           {showNicheSuggestions && filteredNiches.length > 0 && (
-            <div className="absolute z-50 w-full mt-2 bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl shadow-black/50 overflow-hidden">
-              <div className="px-4 py-2.5 border-b border-zinc-800 flex items-center justify-between">
-                <span className="text-[11px] font-medium text-zinc-500 uppercase tracking-wider">Recent</span>
+            <div className="absolute top-full left-0 right-0 mt-2 bg-[#18181b] border border-zinc-800 rounded-xl shadow-2xl shadow-black/50 overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+              <div className="px-4 py-2 border-b border-zinc-800 flex items-center justify-between bg-zinc-900/50">
+                <span className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">Recent Searches</span>
                 <button
                   type="button"
                   onClick={(e) => {
@@ -230,9 +260,9 @@ export function SearchForm({ onSearch, isLoading, initialNiche = '', initialLoca
                     clearRecentItems(STORAGE_KEY_NICHES);
                     setRecentNiches([]);
                   }}
-                  className="text-[11px] text-zinc-600 hover:text-zinc-400 transition-colors"
+                  className="text-[10px] text-zinc-500 hover:text-zinc-300 transition-colors"
                 >
-                  Clear all
+                  Clear History
                 </button>
               </div>
               <div className="py-1">
@@ -244,11 +274,13 @@ export function SearchForm({ onSearch, isLoading, initialNiche = '', initialLoca
                       setNiche(item);
                       setShowNicheSuggestions(false);
                     }}
-                    className="w-full px-4 py-2.5 text-left text-[14px] text-zinc-300 hover:bg-zinc-800/50 hover:text-white flex items-center gap-3 transition-colors"
+                    className="w-full px-4 py-3 text-left text-sm text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100 flex items-center gap-3 transition-colors"
                   >
-                    <svg className="w-4 h-4 text-zinc-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
+                    <div className="w-8 h-8 rounded-full bg-zinc-800/50 flex items-center justify-center text-zinc-600">
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
                     {item}
                   </button>
                 ))}
@@ -257,27 +289,33 @@ export function SearchForm({ onSearch, isLoading, initialNiche = '', initialLoca
           )}
         </div>
 
-        {/* Location Row */}
-        <div className="flex gap-3">
-          {/* Country Picker */}
-          <div ref={countryPickerRef} className="relative">
+        {/* Divider */}
+        <div className="hidden md:block w-px h-12 bg-zinc-800" />
+        <div className="block md:hidden h-px w-full bg-zinc-800" />
+
+        {/* Location Section */}
+        <div className="flex-1 flex flex-col md:flex-row md:items-center relative">
+
+          {/* Country Trigger */}
+          <div ref={countryPickerRef} className="relative border-b md:border-b-0 md:border-r border-zinc-800 md:w-32">
             <button
               type="button"
               onClick={() => setShowCountryPicker(!showCountryPicker)}
-              className={`h-full px-4 flex items-center gap-2 bg-zinc-900/50 border rounded-xl transition-all duration-200 ${
-                showCountryPicker
-                  ? 'border-violet-500/50 bg-zinc-900/80'
-                  : 'border-zinc-800 hover:border-zinc-700'
-              }`}
+              className="w-full h-full px-6 py-4 md:py-5 text-left flex flex-col justify-center transition-colors group"
             >
-              <span className="text-xl">{selectedCountry?.flag}</span>
-              <svg className={`w-4 h-4 text-zinc-500 transition-transform duration-200 ${showCountryPicker ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              </svg>
+              <label className="text-xs font-medium text-zinc-500 mb-1 block uppercase tracking-wider group-hover:text-zinc-400 transition-colors">
+                Country
+              </label>
+              <div className="flex items-center gap-2 text-zinc-200">
+                <span className="text-sm font-medium">{selectedCountry?.code}</span>
+                <svg className={`w-3 h-3 text-zinc-600 ml-auto transition-transform ${showCountryPicker ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </div>
             </button>
 
             {showCountryPicker && (
-              <div className="absolute left-0 top-full mt-2 w-56 bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl shadow-black/50 py-2 z-50 max-h-64 overflow-y-auto">
+              <div className="absolute left-0 top-full mt-2 w-64 bg-[#18181b] border border-zinc-800 rounded-xl shadow-2xl shadow-black/50 py-1 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
                 {COUNTRIES.map((c) => (
                   <button
                     key={c.code}
@@ -287,14 +325,13 @@ export function SearchForm({ onSearch, isLoading, initialNiche = '', initialLoca
                       setRegion('');
                       setShowCountryPicker(false);
                     }}
-                    className={`w-full px-4 py-2.5 text-left flex items-center gap-3 transition-colors ${
-                      country === c.code
-                        ? 'bg-violet-500/10 text-violet-400'
-                        : 'text-zinc-300 hover:bg-zinc-800/50 hover:text-white'
-                    }`}
+                    className={`w-full px-4 py-3 text-left flex items-center gap-3 transition-colors ${country === c.code
+                      ? 'bg-primary/10 text-primary'
+                      : 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100'
+                      }`}
                   >
                     <span className="text-xl">{c.flag}</span>
-                    <span className="text-[14px]">{c.name}</span>
+                    <span className="text-sm font-medium">{c.name}</span>
                     {country === c.code && (
                       <svg className="w-4 h-4 ml-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -306,80 +343,131 @@ export function SearchForm({ onSearch, isLoading, initialNiche = '', initialLoca
             )}
           </div>
 
-          {country === 'OTHER' ? (
-            <input
-              type="text"
-              value={freeformLocation}
-              onChange={(e) => setFreeformLocation(e.target.value)}
-              placeholder="City, region, or address"
-              className="flex-1 px-5 py-4 text-[15px] bg-zinc-900/50 text-white border border-zinc-800 rounded-xl placeholder:text-zinc-500 transition-all duration-200 outline-none hover:border-zinc-700 focus:border-violet-500/50 focus:bg-zinc-900/80 focus:shadow-lg focus:shadow-violet-500/10"
-              disabled={isLoading}
-            />
-          ) : (
-            <>
-              {/* City Input */}
-              <input
-                type="text"
-                value={city}
-                onChange={(e) => setCity(e.target.value)}
-                onFocus={() => setCityFocused(true)}
-                onBlur={() => setCityFocused(false)}
-                placeholder="City"
-                className={`flex-1 min-w-0 px-5 py-4 text-[15px] bg-zinc-900/50 text-white border rounded-xl placeholder:text-zinc-500 transition-all duration-200 outline-none ${
-                  cityFocused
-                    ? 'border-violet-500/50 bg-zinc-900/80 shadow-lg shadow-violet-500/10'
-                    : 'border-zinc-800 hover:border-zinc-700'
-                }`}
-                disabled={isLoading}
-              />
-
-              {/* State/Region Select */}
-              <div className="relative min-w-[140px]">
-                <select
-                  value={region}
-                  onChange={(e) => setRegion(e.target.value)}
-                  className={`w-full h-full px-4 pr-10 text-[15px] bg-zinc-900/50 border border-zinc-800 rounded-xl appearance-none cursor-pointer transition-all duration-200 outline-none hover:border-zinc-700 focus:border-violet-500/50 focus:bg-zinc-900/80 ${
-                    region ? 'text-white' : 'text-zinc-500'
-                  }`}
+          {/* City/Region Inputs */}
+          <div className="flex-1 px-6 py-4 md:py-5 flex flex-col justify-center transition-colors">
+            <label className={`text-xs font-medium mb-1 block uppercase tracking-wider transition-colors ${activeField === 'location' ? 'text-primary' : 'text-zinc-500'}`}>
+              {country === 'OTHER' ? 'Full Address' : 'City & Region'}
+            </label>
+            <div className="flex items-center gap-2">
+              {country === 'OTHER' ? (
+                <input
+                  type="text"
+                  value={freeformLocation}
+                  onChange={(e) => setFreeformLocation(e.target.value)}
+                  onFocus={() => setActiveField('location')}
+                  placeholder="Enter detailed location..."
+                  className="w-full bg-transparent outline-none text-zinc-100 placeholder:text-zinc-600 font-medium"
                   disabled={isLoading}
-                >
-                  <option value="" className="bg-zinc-900">{regionPlaceholder}</option>
-                  {regions.map((r) => (
-                    <option key={r.code} value={r.code} className="bg-zinc-900 text-white">
-                      {r.name}
-                    </option>
-                  ))}
-                </select>
-                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
-                  <svg className="w-4 h-4 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
+                />
+              ) : (
+                <div className="flex items-center gap-2 w-full">
+                  <input
+                    type="text"
+                    value={city}
+                    onChange={(e) => setCity(e.target.value)}
+                    onFocus={() => setActiveField('location')}
+                    placeholder="City Name"
+                    className="flex-1 min-w-0 bg-transparent outline-none text-zinc-100 placeholder:text-zinc-600 font-medium"
+                    disabled={isLoading}
+                  />
+                  <span className="text-zinc-700">/</span>
+                  <div className="relative min-w-[80px] md:min-w-[140px]" ref={regionPickerRef}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowRegionPicker(!showRegionPicker);
+                        setActiveField('location');
+                        setRegionSearch(''); // Reset search on open
+                      }}
+                      className="w-full text-left bg-transparent outline-none text-zinc-100 font-medium flex items-center gap-2"
+                      disabled={isLoading}
+                    >
+                      <span className={`truncate ${!region ? 'text-zinc-600' : 'text-zinc-100'}`}>
+                        {selectedRegion ? selectedRegion.code : `Select ${regionPlaceholder}`}
+                      </span>
+                      <svg className={`w-3 h-3 text-zinc-600 ml-auto flex-shrink-0 transition-transform ${showRegionPicker ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+
+                    {showRegionPicker && (
+                      <div className="absolute right-0 top-full mt-2 w-56 bg-[#18181b] border border-zinc-800 rounded-xl shadow-2xl shadow-black/50 py-1 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                        {/* Search Input Sticky Header */}
+                        <div className="px-2 py-1 border-b border-zinc-800/50 mb-1">
+                          <input
+                            autoFocus
+                            type="text"
+                            value={regionSearch} // Ensure this state exists
+                            onChange={(e) => setRegionSearch(e.target.value)}
+                            placeholder={`Search ${regionPlaceholder}...`}
+                            className="w-full px-2 py-1.5 text-sm bg-zinc-900/50 text-zinc-200 rounded-lg outline-none placeholder:text-zinc-600 focus:bg-zinc-900 border border-transparent focus:border-zinc-800 transition-colors"
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        </div>
+
+                        <div className="max-h-64 overflow-y-auto custom-scrollbar">
+                          {regions
+                            .filter(r => r.name.toLowerCase().includes(regionSearch.toLowerCase()) || r.code.toLowerCase().includes(regionSearch.toLowerCase()))
+                            .map((r) => (
+                              <button
+                                key={r.code}
+                                type="button"
+                                onClick={() => {
+                                  setRegion(r.code);
+                                  setShowRegionPicker(false);
+                                  setRegionSearch('');
+                                }}
+                                className={`w-full px-4 py-2 text-left flex items-center justify-between text-sm transition-colors ${region === r.code
+                                  ? 'bg-primary/10 text-primary'
+                                  : 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100'
+                                  }`}
+                              >
+                                <span>{r.name}</span>
+                                {region === r.code && (
+                                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                  </svg>
+                                )}
+                              </button>
+                            ))}
+                          {regions.filter(r => r.name.toLowerCase().includes(regionSearch.toLowerCase()) || r.code.toLowerCase().includes(regionSearch.toLowerCase())).length === 0 && (
+                            <div className="px-4 py-3 text-center text-xs text-zinc-500">
+                              No {regionPlaceholder.toLowerCase()}s found
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            </>
-          )}
+              )}
+            </div>
+          </div>
         </div>
 
-        {/* Submit Button */}
-        <button
-          type="submit"
-          disabled={isLoading || !isFormValid}
-          className="w-full py-4 bg-violet-600 text-white text-[15px] font-medium rounded-xl transition-all duration-200 hover:bg-violet-500 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-violet-600 flex items-center justify-center gap-2"
-        >
-          {isLoading ? (
-            <>
-              <LoadingSpinner size="sm" />
-              <span>Searching...</span>
-            </>
-          ) : (
-            <>
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        {/* Action Button */}
+        <div className="p-2 md:pl-0">
+          <button
+            type="submit"
+            disabled={isLoading || !isFormValid}
+            className={`
+              w-full md:w-auto h-14 md:h-full aspect-square rounded-xl flex items-center justify-center transition-all duration-300
+              ${!isFormValid
+                ? 'bg-zinc-800 text-zinc-600 cursor-not-allowed'
+                : 'bg-primary text-primary-foreground shadow-lg shadow-primary/25 hover:bg-primary/90 hover:scale-105 active:scale-95'
+              }
+            `}
+          >
+            {isLoading ? (
+              <LoadingSpinner size="sm" className="text-current" />
+            ) : (
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
-              <span>Search</span>
-            </>
-          )}
-        </button>
+            )}
+          </button>
+        </div>
+
       </div>
     </form>
   );
