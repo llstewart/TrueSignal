@@ -205,13 +205,13 @@ export function getSeoNeedSummary(business: EnrichedBusiness): string[] {
   // Note: daysDormant is null when data is unavailable from API
   if (business.daysDormant !== null) {
     if (business.daysDormant > 365) {
-      signals.push(`Dormant 1+ year`);
+      signals.push(`No review reply in 1+ year`);
     } else if (business.daysDormant > 180) {
-      signals.push(`Dormant ${business.daysDormant} days`);
+      signals.push(`No review reply in ${business.daysDormant} days`);
     } else if (business.daysDormant > 90) {
-      signals.push(`Inactive ${business.daysDormant} days`);
+      signals.push(`No review reply in ${business.daysDormant} days`);
     } else if (business.daysDormant > 30) {
-      signals.push(`Slowing activity (${business.daysDormant}d)`);
+      signals.push(`Last review reply ${business.daysDormant} days ago`);
     }
   }
 
@@ -219,11 +219,11 @@ export function getSeoNeedSummary(business: EnrichedBusiness): string[] {
   // Note: responseRate is 0 when data is unavailable from API
   if (business.responseRate > 0) {
     if (business.responseRate < 20) {
-      signals.push(`Very low response (${business.responseRate}%)`);
+      signals.push(`Rarely replies to reviews (${business.responseRate}%)`);
     } else if (business.responseRate < 50) {
-      signals.push(`Low response (${business.responseRate}%)`);
+      signals.push(`Low review reply rate (${business.responseRate}%)`);
     } else if (business.responseRate < 70) {
-      signals.push(`Moderate response (${business.responseRate}%)`);
+      signals.push(`Sometimes replies to reviews (${business.responseRate}%)`);
     }
   }
 

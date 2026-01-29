@@ -1,108 +1,119 @@
-import OpenAI from 'openai';
+import { searchGoogleMaps } from './outscraper';
 
-let openaiClient: OpenAI | null = null;
+// Number of top results to check for visibility
+const VISIBILITY_TOP_N = 10;
 
-function getOpenAIClient(): OpenAI {
-  if (!openaiClient) {
-    const apiKey = process.env.OPENAI_API_KEY;
-
-    if (!apiKey) {
-      throw new Error('OPENAI_API_KEY is not configured');
-    }
-
-    openaiClient = new OpenAI({ apiKey });
-  }
-
-  return openaiClient;
-}
-
+/**
+ * Check if a business appears in actual Google Maps search results
+ * This uses real search data instead of AI-generated lists
+ */
 export async function checkSearchVisibility(
   businessName: string,
   niche: string,
   location: string
 ): Promise<boolean> {
-  const client = getOpenAIClient();
-
-  const prompt = `I am looking for a ${niche} in ${location}. Please list the top 5 best options based on reputation. Just list the business names, one per line.`;
-
   try {
-    const completion = await client.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [
-        {
-          role: 'user',
-          content: prompt,
-        },
-      ],
-      max_tokens: 500,
-      temperature: 0.3,
-    });
+    console.log(`[Visibility] Checking if "${businessName}" ranks for "${niche}" in "${location}"`);
 
-    const responseText = completion.choices[0]?.message?.content || '';
+    // Search Google Maps for the niche in location
+    const results = await searchGoogleMaps(niche, location, VISIBILITY_TOP_N);
 
-    // Check if the business name appears in the response
-    // Use case-insensitive matching and handle partial matches
-    const normalizedResponse = responseText.toLowerCase();
-    const normalizedBusinessName = businessName.toLowerCase();
+    // Check if the business appears in top results
+    const normalizedBusinessName = businessName.toLowerCase().trim();
 
-    // Check for exact match or significant substring match
-    const isRanked = normalizedResponse.includes(normalizedBusinessName) ||
-      normalizedBusinessName.split(' ').filter(word => word.length > 3).some(
-        word => normalizedResponse.includes(word.toLowerCase())
-      );
+    for (let i = 0; i < results.length; i++) {
+      const resultName = results[i].name.toLowerCase().trim();
 
-    return isRanked;
+      // Check for exact match or significant overlap
+      if (resultName === normalizedBusinessName) {
+        console.log(`[Visibility] ✓ "${businessName}" found at position ${i + 1} (exact match)`);
+        return true;
+      }
+
+      // Check if one contains the other (handles "Joe's Plumbing" vs "Joe's Plumbing LLC")
+      if (resultName.includes(normalizedBusinessName) || normalizedBusinessName.includes(resultName)) {
+        console.log(`[Visibility] ✓ "${businessName}" found at position ${i + 1} (partial match: "${results[i].name}")`);
+        return true;
+      }
+
+      // Check significant word overlap (3+ char words)
+      const businessWords = normalizedBusinessName.split(/\s+/).filter(w => w.length > 3);
+      const resultWords = resultName.split(/\s+/).filter(w => w.length > 3);
+      const matchingWords = businessWords.filter(w => resultWords.includes(w));
+
+      if (businessWords.length > 0 && matchingWords.length >= Math.ceil(businessWords.length * 0.6)) {
+        console.log(`[Visibility] ✓ "${businessName}" found at position ${i + 1} (word match: "${results[i].name}")`);
+        return true;
+      }
+    }
+
+    console.log(`[Visibility] ✗ "${businessName}" not found in top ${results.length} results`);
+    return false;
   } catch (error) {
-    console.error('OpenAI visibility check failed:', error);
+    console.error('[Visibility] Check failed:', error);
     return false;
   }
 }
 
+/**
+ * Batch check visibility for multiple businesses
+ * Makes ONE search request and checks all businesses against it
+ */
 export async function batchCheckVisibility(
   businesses: { name: string }[],
   niche: string,
   location: string
 ): Promise<Map<string, boolean>> {
   const results = new Map<string, boolean>();
-  const client = getOpenAIClient();
-
-  // Make ONE API call to get top 5 businesses, then check all names against it
-  const prompt = `I am looking for a ${niche} in ${location}. Please list the top 5 best options based on reputation. Just list the business names, one per line.`;
 
   try {
-    console.log(`[OpenAI] Fetching top 5 ${niche} in ${location}...`);
+    console.log(`[Visibility] Batch checking ${businesses.length} businesses for "${niche}" in "${location}"`);
 
-    const completion = await client.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [
-        {
-          role: 'user',
-          content: prompt,
-        },
-      ],
-      max_tokens: 500,
-      temperature: 0.3,
-    });
+    // Make ONE search request
+    const searchResults = await searchGoogleMaps(niche, location, VISIBILITY_TOP_N);
 
-    const responseText = completion.choices[0]?.message?.content || '';
-    const normalizedResponse = responseText.toLowerCase();
+    // Normalize search result names for comparison
+    const topBusinessNames = searchResults.map(r => r.name.toLowerCase().trim());
 
-    console.log(`[OpenAI] Top 5 response received, checking ${businesses.length} businesses against it`);
+    console.log(`[Visibility] Top ${searchResults.length} results:`, topBusinessNames.slice(0, 5));
 
-    // Check each business name against the single response
+    // Check each business against the search results
     for (const business of businesses) {
-      const normalizedName = business.name.toLowerCase();
+      const normalizedName = business.name.toLowerCase().trim();
+      let found = false;
 
-      // Check for exact match or significant word match
-      const isRanked = normalizedResponse.includes(normalizedName) ||
-        normalizedName.split(' ').filter(word => word.length > 3).some(
-          word => normalizedResponse.includes(word.toLowerCase())
-        );
+      for (const resultName of topBusinessNames) {
+        // Exact match
+        if (resultName === normalizedName) {
+          found = true;
+          break;
+        }
 
-      results.set(business.name, isRanked);
+        // Partial match
+        if (resultName.includes(normalizedName) || normalizedName.includes(resultName)) {
+          found = true;
+          break;
+        }
+
+        // Word overlap check
+        const businessWords = normalizedName.split(/\s+/).filter(w => w.length > 3);
+        const resultWords = resultName.split(/\s+/).filter(w => w.length > 3);
+        const matchingWords = businessWords.filter(w => resultWords.includes(w));
+
+        if (businessWords.length > 0 && matchingWords.length >= Math.ceil(businessWords.length * 0.6)) {
+          found = true;
+          break;
+        }
+      }
+
+      results.set(business.name, found);
     }
+
+    const rankedCount = Array.from(results.values()).filter(v => v).length;
+    console.log(`[Visibility] Batch complete: ${rankedCount}/${businesses.length} businesses found in top results`);
+
   } catch (error) {
-    console.error('[OpenAI] Visibility check failed:', error);
+    console.error('[Visibility] Batch check failed:', error);
     // Default all to false on error
     for (const business of businesses) {
       results.set(business.name, false);

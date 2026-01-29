@@ -316,7 +316,7 @@ export function UpgradedListTable({ businesses, niche, location, isLoadingMore, 
                       />
                     </svg>
                     <span className="absolute left-0 top-full mt-2 px-3 py-2 text-xs font-normal text-primary-foreground bg-primary rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50 pointer-events-none shadow-lg">
-                      Tests if this business appears in the top 5 {niche || 'businesses'} in {location || 'this area'}
+                      Shows if this business appears when searching for {niche || 'this niche'} in {location || 'this area'}
                       <span className="absolute left-3 bottom-full w-0 h-0 border-l-4 border-r-4 border-b-4 border-transparent border-b-primary"></span>
                     </span>
                   </span>
