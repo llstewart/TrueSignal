@@ -310,8 +310,6 @@ export function BillingModal({ isOpen, onClose, currentTier, creditsRemaining }:
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 max-w-4xl mx-auto">
                 {Object.entries(CREDIT_PACKS).map(([key, pack]) => {
-                  const pricePerCredit = (pack.price / pack.credits).toFixed(2);
-
                   return (
                     <div
                       key={key}
@@ -322,9 +320,6 @@ export function BillingModal({ isOpen, onClose, currentTier, creditsRemaining }:
                           <Zap className="w-6 h-6 text-blue-400" />
                         </div>
                         <h3 className="text-lg font-semibold text-white">{pack.name}</h3>
-                        <p className="text-xs text-gray-500 mt-1">
-                          ${pricePerCredit}/credit
-                        </p>
                       </div>
 
                       <div className="text-center mb-4">

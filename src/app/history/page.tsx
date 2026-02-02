@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useUser } from '@/hooks/useUser';
 import { AuthModal } from '@/components/auth/AuthModal';
 import { UserMenu } from '@/components/auth/UserMenu';
+import { SettingsModal } from '@/components/SettingsModal';
 import { EnrichedBusiness } from '@/lib/types';
 import { calculateSeoNeedScore, getSeoNeedSummary } from '@/lib/signals';
 
@@ -20,6 +21,7 @@ export default function HistoryPage() {
   const router = useRouter();
   const { user, isLoading: isAuthLoading, credits, tier } = useUser();
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [savedAnalyses, setSavedAnalyses] = useState<SavedAnalysis[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedAnalysis, setSelectedAnalysis] = useState<SavedAnalysis | null>(null);
@@ -131,6 +133,7 @@ export default function HistoryPage() {
                 credits={credits}
                 tier={tier}
                 onOpenBilling={() => {}}
+                onOpenSettings={() => setShowSettingsModal(true)}
               />
             ) : (
               <button
@@ -419,6 +422,15 @@ export default function HistoryPage() {
         onClose={() => setShowAuthModal(false)}
         defaultMode="signin"
       />
+
+      {/* Settings Modal */}
+      {user && (
+        <SettingsModal
+          isOpen={showSettingsModal}
+          onClose={() => setShowSettingsModal(false)}
+          user={user}
+        />
+      )}
     </div>
   );
 }

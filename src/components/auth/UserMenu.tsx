@@ -9,9 +9,10 @@ interface UserMenuProps {
   credits: number;
   tier: string;
   onOpenBilling: () => void;
+  onOpenSettings: () => void;
 }
 
-export function UserMenu({ user, credits, tier, onOpenBilling }: UserMenuProps) {
+export function UserMenu({ user, credits, tier, onOpenBilling, onOpenSettings }: UserMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const supabase = createClient();
@@ -162,7 +163,10 @@ export function UserMenu({ user, credits, tier, onOpenBilling }: UserMenuProps) 
               Billing & Subscription
             </button>
             <button
-              onClick={() => setIsOpen(false)}
+              onClick={() => {
+                onOpenSettings();
+                setIsOpen(false);
+              }}
               className="w-full flex items-center gap-3 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800 transition-colors"
             >
               <svg className="w-4 h-4 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">

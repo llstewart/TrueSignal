@@ -11,6 +11,7 @@ import { SavedAnalysesPanel } from '@/components/SavedAnalysesPanel';
 import { AuthModal } from '@/components/auth/AuthModal';
 import { UserMenu } from '@/components/auth/UserMenu';
 import { BillingModal } from '@/components/BillingModal';
+import { SettingsModal } from '@/components/SettingsModal';
 import { useUser } from '@/hooks/useUser';
 // Note: SessionIndicator removed - replaced by UserMenu
 import { Business, EnrichedBusiness, TableBusiness, PendingBusiness, isPendingBusiness } from '@/lib/types';
@@ -68,6 +69,7 @@ function HomeContent() {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
   const [showBillingModal, setShowBillingModal] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
 
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [tableBusinesses, setTableBusinesses] = useState<TableBusiness[]>([]);
@@ -224,6 +226,13 @@ function HomeContent() {
       fetchSavedCount();
     }
   }, [user, fetchSavedCount]);
+
+  // Clear analyzed data for free tier users (they can't access Signals Pro)
+  useEffect(() => {
+    if (!isAuthLoading && (!subscription || subscription.tier === 'free')) {
+      setTableBusinesses([]);
+    }
+  }, [isAuthLoading, subscription]);
 
   useEffect(() => {
     if (!isInitialized) return;
@@ -659,6 +668,7 @@ function HomeContent() {
                 credits={credits}
                 tier={tier}
                 onOpenBilling={() => setShowBillingModal(true)}
+                onOpenSettings={() => setShowSettingsModal(true)}
               />
             ) : (
               <div className="flex items-center gap-2">
@@ -841,6 +851,15 @@ function HomeContent() {
           creditsRemaining={credits}
         />
 
+        {/* Settings Modal (Hero Mode) */}
+        {user && (
+          <SettingsModal
+            isOpen={showSettingsModal}
+            onClose={() => setShowSettingsModal(false)}
+            user={user}
+          />
+        )}
+
         {/* Toast Notification */}
         {toastMessage && (
           <div className="fixed bottom-4 right-4 z-50 animate-in slide-in-from-bottom-4 fade-in duration-300">
@@ -931,6 +950,7 @@ function HomeContent() {
                   credits={credits}
                   tier={tier}
                   onOpenBilling={() => setShowBillingModal(true)}
+                  onOpenSettings={() => setShowSettingsModal(true)}
                 />
               </div>
             ) : (
@@ -1202,6 +1222,15 @@ function HomeContent() {
         currentTier={tier}
         creditsRemaining={credits}
       />
+
+      {/* Settings Modal */}
+      {user && (
+        <SettingsModal
+          isOpen={showSettingsModal}
+          onClose={() => setShowSettingsModal(false)}
+          user={user}
+        />
+      )}
 
       {/* Toast Notification */}
       {toastMessage && (
