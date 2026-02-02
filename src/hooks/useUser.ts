@@ -4,6 +4,8 @@ import { useEffect, useState, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { User } from '@supabase/supabase-js';
 
+const FREE_SIGNUP_CREDITS = 5;
+
 interface Subscription {
   tier: 'free' | 'starter' | 'pro' | 'enterprise';
   status: 'active' | 'canceled' | 'past_due' | 'trialing' | 'incomplete';
@@ -26,7 +28,7 @@ interface UseUserReturn {
 const defaultSubscription: Subscription = {
   tier: 'free',
   status: 'active',
-  credits_remaining: 0,
+  credits_remaining: FREE_SIGNUP_CREDITS,
   credits_purchased: 0,
   credits_monthly_allowance: 0,
   current_period_end: null,
@@ -46,7 +48,7 @@ export function useUser(): UseUserReturn {
 
       if (user) {
         // Fetch subscription data
-        const { data: sub } = await supabase
+        const { data: sub, error: fetchError } = await supabase
           .from('subscriptions')
           .select('*')
           .eq('user_id', user.id)
@@ -54,6 +56,28 @@ export function useUser(): UseUserReturn {
 
         if (sub) {
           setSubscription(sub as Subscription);
+        } else if (fetchError?.code === 'PGRST116') {
+          // No subscription found - create one with free credits
+          console.log('[useUser] Creating subscription with free credits for new user');
+          const { data: newSub, error: insertError } = await supabase
+            .from('subscriptions')
+            .insert({
+              user_id: user.id,
+              tier: 'free',
+              status: 'active',
+              credits_remaining: FREE_SIGNUP_CREDITS,
+              credits_purchased: 0,
+              credits_monthly_allowance: 0,
+            })
+            .select()
+            .single();
+
+          if (insertError) {
+            console.error('[useUser] Error creating subscription:', insertError);
+            setSubscription(defaultSubscription);
+          } else if (newSub) {
+            setSubscription(newSub as Subscription);
+          }
         } else {
           setSubscription(defaultSubscription);
         }

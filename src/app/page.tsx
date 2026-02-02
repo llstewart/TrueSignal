@@ -121,11 +121,14 @@ function HomeContent() {
     }
   }, [urlSearchParams, refreshUser, router]);
 
-  // Fetch saved analyses count for session indicator
+  // Fetch saved searches count - only for logged-in users
   const fetchSavedCount = useCallback(async () => {
-    if (!sessionId) return;
+    if (!user) {
+      setSavedAnalysesCount(0);
+      return;
+    }
     try {
-      const response = await fetch(`/api/session?sessionId=${encodeURIComponent(sessionId)}`);
+      const response = await fetch('/api/session');
       if (response.ok) {
         const data = await response.json();
         const analyses = data.analyses || {};
@@ -136,41 +139,40 @@ function HomeContent() {
     } catch {
       setIsSessionConnected(false);
     }
-  }, [sessionId]);
+  }, [user]);
 
-  // Load saved analyses from Redis for current search
+  // Load saved analyses for current search - only for logged-in users
   const loadSavedAnalyses = useCallback(async (niche: string, location: string) => {
-    if (!sessionId) return;
+    if (!user) return;
     setIsLoadingSaved(true);
     try {
       const response = await fetch(
-        `/api/session?sessionId=${encodeURIComponent(sessionId)}&niche=${encodeURIComponent(niche)}&location=${encodeURIComponent(location)}`
+        `/api/session?niche=${encodeURIComponent(niche)}&location=${encodeURIComponent(location)}`
       );
       if (response.ok) {
         const data = await response.json();
         if (data.businesses && data.businesses.length > 0) {
-          console.log(`[Session] Loaded ${data.businesses.length} previously analyzed businesses`);
+          console.log(`[Session] Loaded ${data.businesses.length} previously saved businesses`);
           setTableBusinesses(data.businesses);
         }
         setIsSessionConnected(true);
       }
     } catch (error) {
-      console.error('[Session] Failed to load saved analyses:', error);
+      console.error('[Session] Failed to load saved searches:', error);
       setIsSessionConnected(false);
     } finally {
       setIsLoadingSaved(false);
     }
-  }, [sessionId]);
+  }, [user]);
 
-  // Save analyses to Redis
+  // Save analyses to database - only for logged-in users
   const saveAnalysesToSession = useCallback(async (businesses: EnrichedBusiness[]) => {
-    if (!sessionId || !searchParams) return;
+    if (!user || !searchParams) return;
     try {
       await fetch('/api/session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          sessionId,
           niche: searchParams.niche,
           location: searchParams.location,
           businesses,
@@ -182,7 +184,7 @@ function HomeContent() {
     } catch (error) {
       console.error('[Session] Failed to save analyses:', error);
     }
-  }, [sessionId, searchParams, fetchSavedCount]);
+  }, [user, searchParams, fetchSavedCount]);
 
   // Determine if we're in "results mode" (compact header) or "hero mode" (full landing)
   const hasResults = businesses.length > 0;
@@ -209,19 +211,19 @@ function HomeContent() {
     setIsInitialized(true);
   }, []);
 
-  // Load saved analyses from Redis when search params change
+  // Load saved analyses from database when search params change (logged-in users only)
   useEffect(() => {
-    if (sessionId && searchParams && tableBusinesses.length === 0) {
+    if (user && searchParams && tableBusinesses.length === 0) {
       loadSavedAnalyses(searchParams.niche, searchParams.location);
     }
-  }, [sessionId, searchParams, loadSavedAnalyses, tableBusinesses.length]);
+  }, [user, searchParams, loadSavedAnalyses, tableBusinesses.length]);
 
-  // Fetch saved count when session is initialized
+  // Fetch saved count when user is logged in
   useEffect(() => {
-    if (sessionId) {
+    if (user) {
       fetchSavedCount();
     }
-  }, [sessionId, fetchSavedCount]);
+  }, [user, fetchSavedCount]);
 
   useEffect(() => {
     if (!isInitialized) return;
@@ -251,7 +253,7 @@ function HomeContent() {
   }, [searchParams, activeTab, isInitialized, router]);
 
   useEffect(() => {
-    if (!isInitialized) return;
+    if (!isInitialized || isAuthLoading) return;
     const niche = urlSearchParams.get('niche');
     const location = urlSearchParams.get('location');
     const tab = urlSearchParams.get('tab') as TabType | null;
@@ -259,9 +261,27 @@ function HomeContent() {
       if (tab) setActiveTab(tab);
       handleSearchFromUrl(niche, location);
     }
-  }, [isInitialized, urlSearchParams, businesses.length, isSearching]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isInitialized, isAuthLoading, urlSearchParams, businesses.length, isSearching, user]);
 
   const handleSearchFromUrl = async (niche: string, location: string) => {
+    // Require sign-in for all searches
+    if (!user) {
+      // Store intended search params and show auth modal
+      setSearchParams({ niche, location });
+      setAuthMode('signup');
+      setShowAuthModal(true);
+      return;
+    }
+
+    // Check if user has credits
+    if (credits < 1) {
+      setSearchParams({ niche, location });
+      setError('You need 1 credit to search. Purchase more credits to continue.');
+      setShowBillingModal(true);
+      return;
+    }
+
     if (searchControllerRef.current) {
       searchControllerRef.current.abort();
     }
@@ -270,6 +290,14 @@ function HomeContent() {
     setIsSearching(true);
     setError(null);
     setSearchParams({ niche, location });
+
+    // Deduct 1 credit for the search
+    const creditDeducted = await deductCredit(1);
+    if (!creditDeducted) {
+      setError('Failed to process credit. Please try again.');
+      setIsSearching(false);
+      return;
+    }
 
     try {
       const response = await fetch('/api/search', {
@@ -285,6 +313,19 @@ function HomeContent() {
       const data = await response.json();
       setBusinesses(data.businesses);
       setIsCached(data.cached || false);
+
+      // Auto-save for logged-in users
+      if (data.businesses.length > 0) {
+        fetch('/api/session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            niche,
+            location,
+            businesses: data.businesses,
+          }),
+        }).catch(err => console.error('[Session] Failed to save search:', err));
+      }
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') return;
       setError(err instanceof Error ? err.message : 'An unexpected error occurred');
@@ -294,6 +335,20 @@ function HomeContent() {
   };
 
   const handleSearch = async (niche: string, location: string) => {
+    // Require sign-in for all searches
+    if (!user) {
+      setAuthMode('signup');
+      setShowAuthModal(true);
+      return;
+    }
+
+    // Check if user has credits (1 credit per search)
+    if (credits < 1) {
+      setError('You need 1 credit to search. Purchase more credits to continue.');
+      setShowBillingModal(true);
+      return;
+    }
+
     if (searchControllerRef.current) searchControllerRef.current.abort();
     if (analyzeControllerRef.current) analyzeControllerRef.current.abort();
 
@@ -308,6 +363,14 @@ function HomeContent() {
     setSelectedBusinesses(new Set());
     setSearchParams({ niche, location });
     setIsCached(false);
+
+    // Deduct 1 credit for the search
+    const creditDeducted = await deductCredit(1);
+    if (!creditDeducted) {
+      setError('Failed to process credit. Please try again.');
+      setIsSearching(false);
+      return;
+    }
 
     try {
       const response = await fetch('/api/search', {
@@ -324,6 +387,19 @@ function HomeContent() {
       setBusinesses(data.businesses);
       setIsCached(data.cached || false);
       setActiveTab('general');
+
+      // Auto-save general list for logged-in users
+      if (data.businesses.length > 0) {
+        fetch('/api/session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            niche,
+            location,
+            businesses: data.businesses,
+          }),
+        }).catch(err => console.error('[Session] Failed to save search:', err));
+      }
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') return;
       setError(err instanceof Error ? err.message : 'An unexpected error occurred');
@@ -577,9 +653,12 @@ function HomeContent() {
                     setAuthMode('signup');
                     setShowAuthModal(true);
                   }}
-                  className="px-4 py-2 text-sm font-medium bg-violet-600 hover:bg-violet-500 text-white rounded-lg transition-colors"
+                  className="px-4 py-2 text-sm font-medium bg-violet-600 hover:bg-violet-500 text-white rounded-lg transition-colors flex items-center gap-2"
                 >
-                  Get Started
+                  <span>Get 5 Free Credits</span>
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                  </svg>
                 </button>
               </div>
             )}
@@ -589,6 +668,16 @@ function HomeContent() {
         {/* Centered Hero Content */}
         <div className="flex-1 flex items-center justify-center px-4">
           <div className="w-full max-w-3xl mx-auto text-center">
+            {/* Free Credits Badge - for non-logged-in users */}
+            {!user && (
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 mb-6 bg-emerald-500/10 border border-emerald-500/20 rounded-full">
+                <svg className="w-4 h-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span className="text-sm font-medium text-emerald-400">Sign up free and get 5 credits</span>
+              </div>
+            )}
+
             {/* Logo */}
             <h1 className="text-4xl md:text-5xl font-bold text-white mb-4 tracking-tight">
               TrueSignal<span className="text-violet-500">.</span>
@@ -597,13 +686,50 @@ function HomeContent() {
               Find businesses that actually need your services. Powered by real signals, not guesswork.
             </p>
 
-            {/* Search Form */}
-            <SearchForm
-              onSearch={handleSearch}
-              isLoading={isSearching}
-              initialNiche={searchParams?.niche}
-              initialLocation={searchParams?.location}
-            />
+            {/* Search Form - only shown to logged-in users */}
+            {user ? (
+              <SearchForm
+                onSearch={handleSearch}
+                isLoading={isSearching}
+                initialNiche={searchParams?.niche}
+                initialLocation={searchParams?.location}
+              />
+            ) : (
+              /* Sign-up CTA for non-logged-in users */
+              <div className="max-w-md mx-auto">
+                <button
+                  onClick={() => {
+                    setAuthMode('signup');
+                    setShowAuthModal(true);
+                  }}
+                  className="w-full px-6 py-4 text-lg font-semibold bg-violet-600 hover:bg-violet-500 text-white rounded-xl transition-all shadow-lg shadow-violet-500/20 hover:shadow-violet-500/30 flex items-center justify-center gap-3"
+                >
+                  <span>Get Started Free</span>
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                  </svg>
+                </button>
+                <p className="mt-4 text-sm text-zinc-500">
+                  Already have an account?{' '}
+                  <button
+                    onClick={() => {
+                      setAuthMode('signin');
+                      setShowAuthModal(true);
+                    }}
+                    className="text-violet-400 hover:text-violet-300 font-medium"
+                  >
+                    Sign in
+                  </button>
+                </p>
+              </div>
+            )}
+
+            {/* Credit Usage Info - for logged-in users */}
+            {user && (
+              <p className="mt-4 text-sm text-zinc-500">
+                1 credit per search &bull; 1 credit per business analysis &bull; <span className="text-violet-400">{credits} credits remaining</span>
+              </p>
+            )}
 
             {/* How it works */}
             <div className="mt-16 flex items-center justify-center gap-8 text-sm text-zinc-500">
@@ -623,8 +749,26 @@ function HomeContent() {
               </div>
             </div>
 
-            {/* Saved Analyses Link */}
-            {savedAnalysesCount > 0 && (
+            {/* What's included - for non-logged-in users */}
+            {!user && (
+              <div className="mt-12 grid grid-cols-3 gap-6 max-w-lg mx-auto text-center">
+                <div>
+                  <div className="text-2xl font-bold text-white">5</div>
+                  <div className="text-xs text-zinc-500">Free Credits</div>
+                </div>
+                <div>
+                  <div className="text-2xl font-bold text-white">20+</div>
+                  <div className="text-xs text-zinc-500">Businesses/Search</div>
+                </div>
+                <div>
+                  <div className="text-2xl font-bold text-white">10+</div>
+                  <div className="text-xs text-zinc-500">SEO Signals</div>
+                </div>
+              </div>
+            )}
+
+            {/* Saved Analyses Link - only for logged-in users */}
+            {user && savedAnalysesCount > 0 && (
               <button
                 onClick={() => setShowSavedPanel(true)}
                 className="mt-8 inline-flex items-center gap-2 px-4 py-2 text-sm text-zinc-400 hover:text-white border border-zinc-700 hover:border-zinc-600 rounded-lg transition-colors"
@@ -632,7 +776,7 @@ function HomeContent() {
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                View {savedAnalysesCount} saved {savedAnalysesCount === 1 ? 'analysis' : 'analyses'}
+                View {savedAnalysesCount} saved {savedAnalysesCount === 1 ? 'search' : 'searches'}
               </button>
             )}
 
@@ -649,7 +793,7 @@ function HomeContent() {
         <SavedAnalysesPanel
           isOpen={showSavedPanel}
           onClose={() => setShowSavedPanel(false)}
-          sessionId={user?.id || sessionId}
+          sessionId={user?.id || ''}
           currentSearchKey={currentSearchKey}
           onLoadSearch={handleLoadFromHistory}
           onClearHistory={handleClearHistory}
@@ -782,9 +926,12 @@ function HomeContent() {
                     setAuthMode('signup');
                     setShowAuthModal(true);
                   }}
-                  className="px-4 py-2 text-sm font-medium bg-violet-600 hover:bg-violet-500 text-white rounded-lg transition-colors"
+                  className="px-4 py-2 text-sm font-medium bg-violet-600 hover:bg-violet-500 text-white rounded-lg transition-colors flex items-center gap-2"
                 >
-                  Get Started
+                  <span>Get 5 Free Credits</span>
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                  </svg>
                 </button>
               </div>
             )}
@@ -996,7 +1143,7 @@ function HomeContent() {
       <SavedAnalysesPanel
         isOpen={showSavedPanel}
         onClose={() => setShowSavedPanel(false)}
-        sessionId={user?.id || sessionId}
+        sessionId={user?.id || ''}
         currentSearchKey={currentSearchKey}
         onLoadSearch={handleLoadFromHistory}
         onClearHistory={handleClearHistory}

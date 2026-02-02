@@ -38,10 +38,17 @@ export function UserMenu({ user, credits, tier, onOpenBilling }: UserMenuProps) 
   const userAvatar = user.user_metadata?.avatar_url;
 
   const tierColors: Record<string, string> = {
-    free: 'text-zinc-400 bg-zinc-400/10',
-    starter: 'text-blue-400 bg-blue-400/10',
-    pro: 'text-violet-400 bg-violet-400/10',
-    enterprise: 'text-amber-400 bg-amber-400/10',
+    free: 'text-zinc-400 bg-zinc-400/10 border-zinc-400/20',
+    starter: 'text-blue-400 bg-blue-400/10 border-blue-400/20',
+    pro: 'text-violet-400 bg-violet-400/10 border-violet-400/20',
+    enterprise: 'text-amber-400 bg-amber-400/10 border-amber-400/20',
+  };
+
+  const tierLabels: Record<string, string> = {
+    free: 'FREE',
+    starter: 'STARTER',
+    pro: 'PRO',
+    enterprise: 'ENTERPRISE',
   };
 
   return (
@@ -50,6 +57,11 @@ export function UserMenu({ user, credits, tier, onOpenBilling }: UserMenuProps) 
         onClick={() => setIsOpen(!isOpen)}
         className="flex items-center gap-3 px-3 py-1.5 hover:bg-zinc-800 rounded-lg transition-colors"
       >
+        {/* Tier Badge - Always visible */}
+        <div className={`px-2 py-1 text-[10px] font-bold rounded border ${tierColors[tier] || tierColors.free}`}>
+          {tierLabels[tier] || 'FREE'}
+        </div>
+
         {/* Credits Badge */}
         <div className="flex items-center gap-1.5 px-2 py-1 bg-zinc-800 rounded-md">
           <svg className="w-4 h-4 text-violet-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
