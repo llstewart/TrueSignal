@@ -1,14 +1,24 @@
 import { OutscraperReview, OutscraperPost, EnrichedBusiness } from './types';
 
 export function calculateDaysDormant(
-  lastOwnerActivity: Date | null
+  lastOwnerActivity: Date | string | null
 ): number | null {
   if (!lastOwnerActivity) {
     return null;
   }
 
+  // Handle string dates (from JSON serialization)
+  const dateObj = typeof lastOwnerActivity === 'string'
+    ? new Date(lastOwnerActivity)
+    : lastOwnerActivity;
+
+  // Check if valid date
+  if (isNaN(dateObj.getTime())) {
+    return null;
+  }
+
   const now = new Date();
-  const diffTime = now.getTime() - lastOwnerActivity.getTime();
+  const diffTime = now.getTime() - dateObj.getTime();
   const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
 
   return diffDays;

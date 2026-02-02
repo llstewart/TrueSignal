@@ -56,10 +56,13 @@ export async function POST(request: NextRequest) {
         })}\n\n`));
 
         const visibilityCacheKey = Cache.visibilityKey(niche, location);
-        let visibilityResults = await cache.get<Map<string, boolean>>(visibilityCacheKey);
+        // Use Record instead of Map (Maps don't serialize properly to JSON)
+        let visibilityResults = await cache.get<Record<string, boolean>>(visibilityCacheKey);
 
         if (!visibilityResults) {
-          visibilityResults = await batchCheckVisibility(businesses, niche, location);
+          const visibilityMap = await batchCheckVisibility(businesses, niche, location);
+          // Convert Map to plain object for caching
+          visibilityResults = Object.fromEntries(visibilityMap);
           await cache.set(visibilityCacheKey, visibilityResults, CACHE_TTL.VISIBILITY);
           console.log(`[Analyze Selected] Visibility cached for ${niche} in ${location}`);
         } else {
@@ -182,7 +185,7 @@ export async function POST(request: NextRequest) {
                 lastReviewDate: reviewData.lastReviewDate,
                 lastOwnerActivity: reviewData.lastOwnerActivity,
                 daysDormant: calculateDaysDormant(reviewData.lastOwnerActivity),
-                searchVisibility: visibilityResults?.get(business.name) || false,
+                searchVisibility: visibilityResults?.[business.name] || false,
                 responseRate: reviewData.responseRate,
                 locationType: classifyLocationType(business.address),
                 websiteTech: websiteAnalysis.techStack,

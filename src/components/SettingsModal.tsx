@@ -63,9 +63,10 @@ export function SettingsModal({ isOpen, onClose, user }: SettingsModalProps) {
           <h2 className="text-xl font-bold text-white">Settings</h2>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-zinc-800 rounded-lg transition-colors"
+            className="flex items-center gap-2 px-3 py-2 hover:bg-zinc-800 rounded-lg transition-colors text-zinc-400 hover:text-white"
           >
-            <X className="w-5 h-5 text-zinc-400" />
+            <span className="text-sm hidden sm:inline">Back to Results</span>
+            <X className="w-5 h-5" />
           </button>
         </div>
 

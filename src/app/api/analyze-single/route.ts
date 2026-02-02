@@ -51,11 +51,12 @@ export async function POST(request: NextRequest) {
       // Check visibility (with cache)
       (async () => {
         const cacheKey = Cache.visibilityKey(niche, location);
-        const cachedVisibility = await cache.get<Map<string, boolean>>(cacheKey);
+        // Use Record instead of Map (Maps don't serialize properly to JSON)
+        const cachedVisibility = await cache.get<Record<string, boolean>>(cacheKey);
 
-        if (cachedVisibility && cachedVisibility.has(business.name)) {
+        if (cachedVisibility && business.name in cachedVisibility) {
           console.log(`[Analyze Single] Visibility cache HIT for ${business.name}`);
-          return cachedVisibility.get(business.name) || false;
+          return cachedVisibility[business.name] || false;
         }
 
         console.log(`[Analyze Single] Checking visibility for ${business.name}`);

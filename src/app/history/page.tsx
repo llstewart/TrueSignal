@@ -134,6 +134,17 @@ export default function HistoryPage() {
               </button>
               <span className="text-zinc-600">/</span>
               <h1 className="text-lg font-medium text-zinc-300">Saved Analyses</h1>
+
+              {/* Back to Dashboard button */}
+              <button
+                onClick={() => router.push('/')}
+                className="ml-4 flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-zinc-400 hover:text-white border border-zinc-700 hover:border-zinc-600 rounded-lg transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+                <span className="hidden sm:inline">Dashboard</span>
+              </button>
             </div>
 
             {isAuthLoading ? (

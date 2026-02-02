@@ -662,7 +662,7 @@ export function UpgradedListTable({ businesses, niche, location, isLoadingMore, 
                       <span className="text-amber-400/70 text-xs">—</span>
                     ) : (
                       (business as EnrichedBusiness).lastReviewDate
-                        ? formatDate(new Date((business as EnrichedBusiness).lastReviewDate!))
+                        ? formatDate((business as EnrichedBusiness).lastReviewDate)
                         : (
                           <span className="relative group/tooltip">
                             <span className="text-muted-foreground/50 text-xs cursor-help">No data</span>
@@ -678,7 +678,7 @@ export function UpgradedListTable({ businesses, niche, location, isLoadingMore, 
                       <span className="text-amber-400/70 text-xs">—</span>
                     ) : (
                       (business as EnrichedBusiness).lastOwnerActivity
-                        ? formatDate(new Date((business as EnrichedBusiness).lastOwnerActivity!))
+                        ? formatDate((business as EnrichedBusiness).lastOwnerActivity)
                         : (
                           <span className="relative group/tooltip">
                             <span className="text-muted-foreground/50 text-xs cursor-help">No data</span>

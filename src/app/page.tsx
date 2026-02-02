@@ -43,6 +43,7 @@ interface SessionState {
   tableBusinesses: TableBusiness[];
   searchParams: { niche: string; location: string } | null;
   activeTab: TabType;
+  wasAnalyzing?: boolean; // Track if analysis was interrupted
 }
 
 export default function Home() {
@@ -87,6 +88,7 @@ function HomeContent() {
   const [savedAnalysesCount, setSavedAnalysesCount] = useState(0);
   const [isSessionConnected, setIsSessionConnected] = useState(false);
   const [isLoadingSaved, setIsLoadingSaved] = useState(false);
+  const [wasAnalysisInterrupted, setWasAnalysisInterrupted] = useState(false);
 
   // User is considered premium only if they have a paid subscription (not free tier)
   const isPremium = !!user && !!subscription && subscription.tier !== 'free';
@@ -206,7 +208,10 @@ function HomeContent() {
         setTableBusinesses(state.tableBusinesses || []);
         setSearchParams(state.searchParams);
         setActiveTab(state.activeTab || 'general');
-        // isPremium is now derived from auth, not stored in session
+        // Check if analysis was interrupted (had partial results)
+        if (state.wasAnalyzing && state.tableBusinesses && state.tableBusinesses.length > 0) {
+          setWasAnalysisInterrupted(true);
+        }
       }
     } catch (e) {
       console.error('Failed to restore session:', e);
@@ -245,12 +250,13 @@ function HomeContent() {
         tableBusinesses,
         searchParams,
         activeTab,
+        wasAnalyzing: isAnalyzing, // Track if analysis is in progress
       };
       sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(state));
     } catch (e) {
       console.error('Failed to save session:', e);
     }
-  }, [businesses, tableBusinesses, searchParams, activeTab, isInitialized]);
+  }, [businesses, tableBusinesses, searchParams, activeTab, isInitialized, isAnalyzing]);
 
   useEffect(() => {
     if (!isInitialized || !searchParams) return;
@@ -275,6 +281,20 @@ function HomeContent() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isInitialized, isAuthLoading, urlSearchParams, businesses.length, isSearching, user]);
+
+  // Warn user before leaving page during analysis
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isAnalyzing) {
+        e.preventDefault();
+        e.returnValue = 'Analysis is in progress. Your progress will be saved, but the analysis will stop. Are you sure you want to leave?';
+        return e.returnValue;
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isAnalyzing]);
 
   const handleSearchFromUrl = async (niche: string, location: string) => {
     // Require sign-in for all searches
@@ -516,6 +536,7 @@ function HomeContent() {
 
     setIsAnalyzing(true);
     setError(null);
+    setWasAnalysisInterrupted(false); // Clear interrupted flag on new analysis
 
     const pendingBusinesses: PendingBusiness[] = businessesToAnalyze.map(b => ({
       ...b,
@@ -900,11 +921,32 @@ function HomeContent() {
                 setTableBusinesses([]);
                 setSearchParams(null);
                 setError(null);
+                setWasAnalysisInterrupted(false);
                 router.replace('/');
               }}
               className="text-xl font-bold text-white hover:text-violet-400 transition-colors flex-shrink-0"
+              title="Back to home"
             >
               TrueSignal<span className="text-violet-500">.</span>
+            </button>
+
+            {/* New Search button - clear results */}
+            <button
+              onClick={() => {
+                setBusinesses([]);
+                setTableBusinesses([]);
+                setSearchParams(null);
+                setError(null);
+                setWasAnalysisInterrupted(false);
+                router.replace('/');
+              }}
+              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-zinc-400 hover:text-white border border-zinc-700 hover:border-zinc-600 rounded-lg transition-colors"
+              title="Start a new search"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              <span>New Search</span>
             </button>
 
             {/* Compact Search Form */}
@@ -1106,6 +1148,34 @@ function HomeContent() {
                 )}
               </div>
             </div>
+
+            {/* Interrupted Analysis Banner */}
+            {wasAnalysisInterrupted && !isAnalyzing && tableBusinesses.length > 0 && (
+              <div className="p-3 rounded-lg border border-amber-500/30 bg-amber-500/10 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <svg className="w-5 h-5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                  <span className="text-sm text-amber-400">
+                    Analysis was interrupted. {tableBusinesses.filter(b => !isPendingBusiness(b)).length} of {businesses.length} businesses analyzed.
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setWasAnalysisInterrupted(false)}
+                    className="text-xs text-zinc-400 hover:text-white px-2 py-1"
+                  >
+                    Dismiss
+                  </button>
+                  <button
+                    onClick={handleAnalyze}
+                    className="text-xs font-medium text-amber-400 hover:text-amber-300 px-3 py-1 border border-amber-500/30 rounded hover:bg-amber-500/10"
+                  >
+                    Continue Analysis
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Progress Bar */}
             {isAnalyzing && analyzeProgress && (
