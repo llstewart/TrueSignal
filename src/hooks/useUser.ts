@@ -57,26 +57,30 @@ export function useUser(): UseUserReturn {
         if (sub) {
           setSubscription(sub as Subscription);
         } else if (fetchError?.code === 'PGRST116') {
-          // No subscription found - create one with free credits
-          console.log('[useUser] Creating subscription with free credits for new user');
-          const { data: newSub, error: insertError } = await supabase
-            .from('subscriptions')
-            .insert({
-              user_id: user.id,
-              tier: 'free',
-              status: 'active',
-              credits_remaining: FREE_SIGNUP_CREDITS,
-              credits_purchased: 0,
-              credits_monthly_allowance: 0,
-            })
-            .select()
-            .single();
+          // No subscription found - call API to create one with free credits
+          console.log('[useUser] No subscription found, calling init API...');
+          try {
+            const response = await fetch('/api/init-subscription', { method: 'POST' });
+            if (response.ok) {
+              // Refetch subscription after creation
+              const { data: newSub } = await supabase
+                .from('subscriptions')
+                .select('*')
+                .eq('user_id', user.id)
+                .single();
 
-          if (insertError) {
-            console.error('[useUser] Error creating subscription:', insertError);
+              if (newSub) {
+                setSubscription(newSub as Subscription);
+              } else {
+                setSubscription(defaultSubscription);
+              }
+            } else {
+              console.error('[useUser] Init subscription API failed');
+              setSubscription(defaultSubscription);
+            }
+          } catch (apiError) {
+            console.error('[useUser] Error calling init subscription API:', apiError);
             setSubscription(defaultSubscription);
-          } else if (newSub) {
-            setSubscription(newSub as Subscription);
           }
         } else {
           setSubscription(defaultSubscription);

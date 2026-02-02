@@ -1,7 +1,19 @@
 import { createClient } from '@/lib/supabase/server';
+import { createClient as createServiceClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 
 const FREE_SIGNUP_CREDITS = 5;
+
+// Get service role client for bypassing RLS
+function getServiceClient() {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    throw new Error('Supabase environment variables not set');
+  }
+  return createServiceClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_ROLE_KEY
+  );
+}
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
@@ -17,8 +29,11 @@ export async function GET(request: Request) {
       const { data: { user } } = await supabase.auth.getUser();
 
       if (user) {
+        // Use service role client to bypass RLS
+        const serviceClient = getServiceClient();
+
         // Check if user already has a subscription record
-        const { data: existingSub } = await supabase
+        const { data: existingSub } = await serviceClient
           .from('subscriptions')
           .select('id')
           .eq('user_id', user.id)
@@ -26,7 +41,7 @@ export async function GET(request: Request) {
 
         // If no subscription exists, create one with free credits
         if (!existingSub) {
-          const { error: insertError } = await supabase
+          const { error: insertError } = await serviceClient
             .from('subscriptions')
             .insert({
               user_id: user.id,
