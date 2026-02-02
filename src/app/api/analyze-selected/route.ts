@@ -4,8 +4,7 @@ import { analyzeWebsite } from '@/lib/website-analyzer';
 import { batchCheckVisibility } from '@/lib/visibility';
 import { fetchBatchReviews, ReviewData } from '@/lib/outscraper';
 import { classifyLocationType } from '@/utils/address';
-import { cache, CACHE_TTL } from '@/lib/cache';
-import MemoryCache from '@/lib/cache';
+import Cache, { cache, CACHE_TTL } from '@/lib/cache';
 import { Semaphore, sleep } from '@/lib/rate-limiter';
 import { checkRateLimit } from '@/lib/api-rate-limit';
 
@@ -56,12 +55,12 @@ export async function POST(request: NextRequest) {
           totalPhases: 3
         })}\n\n`));
 
-        const visibilityCacheKey = MemoryCache.visibilityKey(niche, location);
-        let visibilityResults = cache.get<Map<string, boolean>>(visibilityCacheKey);
+        const visibilityCacheKey = Cache.visibilityKey(niche, location);
+        let visibilityResults = await cache.get<Map<string, boolean>>(visibilityCacheKey);
 
         if (!visibilityResults) {
           visibilityResults = await batchCheckVisibility(businesses, niche, location);
-          cache.set(visibilityCacheKey, visibilityResults, CACHE_TTL.VISIBILITY);
+          await cache.set(visibilityCacheKey, visibilityResults, CACHE_TTL.VISIBILITY);
           console.log(`[Analyze Selected] Visibility cached for ${niche} in ${location}`);
         } else {
           console.log(`[Analyze Selected] Visibility cache HIT`);
@@ -79,17 +78,18 @@ export async function POST(request: NextRequest) {
         const uncachedReviewQueries: Array<{ id: string; query: string; index: number }> = [];
 
         // Check cache for each business
-        businesses.forEach((business, index) => {
+        for (let index = 0; index < businesses.length; index++) {
+          const business = businesses[index];
           const query = business.placeId || `${business.name}, ${business.address}`;
-          const cacheKey = MemoryCache.reviewsKey(query);
-          const cachedReview = cache.get<ReviewData>(cacheKey);
+          const cacheKey = Cache.reviewsKey(query);
+          const cachedReview = await cache.get<ReviewData>(cacheKey);
 
           if (cachedReview) {
             reviewResults.set(`${index}`, cachedReview);
           } else {
             uncachedReviewQueries.push({ id: `${index}`, query, index });
           }
-        });
+        }
 
         console.log(`[Analyze Selected] Reviews: ${reviewResults.size} cached, ${uncachedReviewQueries.length} to fetch`);
 
@@ -110,13 +110,13 @@ export async function POST(request: NextRequest) {
           );
 
           // Cache and merge results
-          fetchedReviews.forEach((reviewData, id) => {
+          for (const [id, reviewData] of Array.from(fetchedReviews.entries())) {
             const queryInfo = uncachedReviewQueries.find(q => q.id === id);
             if (queryInfo) {
-              cache.set(MemoryCache.reviewsKey(queryInfo.query), reviewData, CACHE_TTL.REVIEWS);
+              await cache.set(Cache.reviewsKey(queryInfo.query), reviewData, CACHE_TTL.REVIEWS);
             }
             reviewResults.set(id, reviewData);
-          });
+          }
         }
 
         // Phase 3: Analyze websites and stream results
@@ -150,13 +150,13 @@ export async function POST(request: NextRequest) {
               let websiteAnalysis: WebsiteAnalysisResult;
               if (business.website) {
                 const websiteCacheKey = `website:${business.website}`;
-                const cached = cache.get<WebsiteAnalysisResult>(websiteCacheKey);
+                const cached = await cache.get<WebsiteAnalysisResult>(websiteCacheKey);
 
                 if (cached) {
                   websiteAnalysis = cached;
                 } else {
                   websiteAnalysis = await analyzeWebsite(business.website);
-                  cache.set(websiteCacheKey, websiteAnalysis, CACHE_TTL.WEBSITE_ANALYSIS);
+                  await cache.set(websiteCacheKey, websiteAnalysis, CACHE_TTL.WEBSITE_ANALYSIS);
                 }
               } else {
                 websiteAnalysis = {

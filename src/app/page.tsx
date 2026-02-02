@@ -143,9 +143,10 @@ function HomeContent() {
     }
   }, [user]);
 
-  // Load saved analyses for current search - only for logged-in users
+  // Load saved analyses for current search - only for paid subscribers
   const loadSavedAnalyses = useCallback(async (niche: string, location: string) => {
-    if (!user) return;
+    // Only load enriched data for paid subscribers
+    if (!user || !subscription || subscription.tier === 'free') return;
     setIsLoadingSaved(true);
     try {
       const response = await fetch(
@@ -165,7 +166,7 @@ function HomeContent() {
     } finally {
       setIsLoadingSaved(false);
     }
-  }, [user]);
+  }, [user, subscription]);
 
   // Save analyses to database - only for logged-in users
   const saveAnalysesToSession = useCallback(async (businesses: EnrichedBusiness[]) => {
@@ -213,12 +214,14 @@ function HomeContent() {
     setIsInitialized(true);
   }, []);
 
-  // Load saved analyses from database when search params change (logged-in users only)
+  // Load saved analyses from database when search params change (paid subscribers only)
   useEffect(() => {
-    if (user && searchParams && tableBusinesses.length === 0) {
+    // Only load for paid subscribers - free tier users shouldn't see enriched data
+    const isPaidSubscriber = subscription && subscription.tier !== 'free';
+    if (user && isPaidSubscriber && searchParams && tableBusinesses.length === 0 && !isAuthLoading) {
       loadSavedAnalyses(searchParams.niche, searchParams.location);
     }
-  }, [user, searchParams, loadSavedAnalyses, tableBusinesses.length]);
+  }, [user, subscription, searchParams, loadSavedAnalyses, tableBusinesses.length, isAuthLoading]);
 
   // Fetch saved count when user is logged in
   useEffect(() => {

@@ -19,7 +19,7 @@ interface SavedAnalysis {
 
 export default function HistoryPage() {
   const router = useRouter();
-  const { user, isLoading: isAuthLoading, credits, tier } = useUser();
+  const { user, isLoading: isAuthLoading, credits, tier, subscription } = useUser();
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [savedAnalyses, setSavedAnalyses] = useState<SavedAnalysis[]>([]);
@@ -27,7 +27,16 @@ export default function HistoryPage() {
   const [selectedAnalysis, setSelectedAnalysis] = useState<SavedAnalysis | null>(null);
   const [expandedBusinesses, setExpandedBusinesses] = useState<Set<string>>(new Set());
 
+  // Check if user has a paid subscription
+  const isPaidSubscriber = !!subscription && subscription.tier !== 'free';
+
   const loadSavedAnalyses = useCallback(async () => {
+    // Only load for paid subscribers
+    if (!isPaidSubscriber) {
+      setIsLoading(false);
+      return;
+    }
+
     setIsLoading(true);
     try {
       // Get session ID for anonymous users
@@ -65,12 +74,14 @@ export default function HistoryPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [selectedAnalysis]);
+  }, [selectedAnalysis, isPaidSubscriber]);
 
-  // Load saved analyses on mount and when user changes
+  // Load saved analyses on mount and when user/subscription changes
   useEffect(() => {
-    loadSavedAnalyses();
-  }, [loadSavedAnalyses]);
+    if (!isAuthLoading) {
+      loadSavedAnalyses();
+    }
+  }, [loadSavedAnalyses, isAuthLoading]);
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -148,7 +159,53 @@ export default function HistoryPage() {
       </header>
 
       <div className="max-w-7xl mx-auto px-4 py-6">
-        {isLoading ? (
+        {isAuthLoading ? (
+          // Auth loading state
+          <div className="flex items-center justify-center py-20">
+            <div className="text-center">
+              <div className="w-8 h-8 border-2 border-violet-500/30 border-t-violet-500 rounded-full animate-spin mx-auto mb-4" />
+              <p className="text-zinc-500 text-sm">Loading...</p>
+            </div>
+          </div>
+        ) : !user ? (
+          // Not logged in state
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <div className="w-20 h-20 bg-zinc-800 rounded-full flex items-center justify-center mb-6">
+              <svg className="w-10 h-10 text-zinc-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
+            </div>
+            <h2 className="text-xl font-semibold text-white mb-2">Sign in required</h2>
+            <p className="text-zinc-500 mb-6 max-w-md">
+              Sign in to view your saved SEO analyses.
+            </p>
+            <button
+              onClick={() => setShowAuthModal(true)}
+              className="px-6 py-3 bg-violet-600 hover:bg-violet-500 text-white rounded-lg font-medium transition-colors"
+            >
+              Sign In
+            </button>
+          </div>
+        ) : !isPaidSubscriber ? (
+          // Free tier - needs to upgrade
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <div className="w-20 h-20 bg-violet-500/10 rounded-full flex items-center justify-center mb-6">
+              <svg className="w-10 h-10 text-violet-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+            </div>
+            <h2 className="text-xl font-semibold text-white mb-2">Upgrade to Access Saved Analyses</h2>
+            <p className="text-zinc-500 mb-6 max-w-md">
+              Saved SEO analyses are a premium feature. Upgrade to a paid plan to save and view your detailed SEO signal analyses.
+            </p>
+            <button
+              onClick={() => router.push('/?upgrade=true')}
+              className="px-6 py-3 bg-violet-600 hover:bg-violet-500 text-white rounded-lg font-medium transition-colors"
+            >
+              View Plans
+            </button>
+          </div>
+        ) : isLoading ? (
           // Loading state
           <div className="flex items-center justify-center py-20">
             <div className="text-center">
@@ -166,8 +223,7 @@ export default function HistoryPage() {
             </div>
             <h2 className="text-xl font-semibold text-white mb-2">No saved analyses yet</h2>
             <p className="text-zinc-500 mb-6 max-w-md">
-              Run an analysis on the main page to save businesses here. Your analyzed data will be stored
-              {user ? ' permanently in your account.' : ' for 7 days. Sign in to save permanently.'}
+              Run an analysis on the main page to save businesses here. Your analyzed data will be stored permanently in your account.
             </p>
             <button
               onClick={() => router.push('/')}

@@ -1,8 +1,39 @@
 /**
- * Simple in-memory cache with TTL
- * For production, replace with Redis
+ * Redis-based cache using Upstash for serverless environments
+ * Falls back to in-memory cache if Redis is not configured
  */
 
+import { Redis } from '@upstash/redis';
+
+// Cache TTL constants (in minutes)
+export const CACHE_TTL = {
+  SEARCH_RESULTS: 60,      // 1 hour for search results
+  VISIBILITY: 60,          // 1 hour for visibility checks
+  REVIEWS: 30,             // 30 min for review data (more dynamic)
+  WEBSITE_ANALYSIS: 120,   // 2 hours for website analysis (rarely changes)
+};
+
+// Check if Redis is configured
+const isRedisConfigured = !!(
+  process.env.UPSTASH_REDIS_REST_URL &&
+  process.env.UPSTASH_REDIS_REST_TOKEN
+);
+
+// Initialize Redis client if configured
+const redis = isRedisConfigured
+  ? new Redis({
+      url: process.env.UPSTASH_REDIS_REST_URL!,
+      token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+    })
+  : null;
+
+if (!isRedisConfigured) {
+  console.warn('[Cache] Upstash Redis not configured - falling back to in-memory cache (not recommended for production)');
+}
+
+/**
+ * In-memory cache fallback for development
+ */
 interface CacheEntry<T> {
   data: T;
   expiresAt: number;
@@ -10,15 +41,52 @@ interface CacheEntry<T> {
 
 class MemoryCache {
   private cache = new Map<string, CacheEntry<unknown>>();
-  private readonly defaultTTL: number;
 
-  constructor(defaultTTLMinutes: number = 60) {
-    this.defaultTTL = defaultTTLMinutes * 60 * 1000;
-
+  constructor() {
     // Clean expired entries every 5 minutes
-    setInterval(() => this.cleanup(), 5 * 60 * 1000);
+    if (typeof setInterval !== 'undefined') {
+      setInterval(() => this.cleanup(), 5 * 60 * 1000);
+    }
   }
 
+  get<T>(key: string): T | null {
+    const entry = this.cache.get(key) as CacheEntry<T> | undefined;
+    if (!entry) return null;
+    if (Date.now() > entry.expiresAt) {
+      this.cache.delete(key);
+      return null;
+    }
+    return entry.data;
+  }
+
+  set<T>(key: string, data: T, ttlMs: number): void {
+    this.cache.set(key, {
+      data,
+      expiresAt: Date.now() + ttlMs,
+    });
+  }
+
+  delete(key: string): void {
+    this.cache.delete(key);
+  }
+
+  private cleanup(): void {
+    const now = Date.now();
+    this.cache.forEach((entry, key) => {
+      if (now > entry.expiresAt) {
+        this.cache.delete(key);
+      }
+    });
+  }
+}
+
+// Fallback in-memory cache instance
+const memoryCache = new MemoryCache();
+
+/**
+ * Unified cache interface that uses Redis when available, falls back to memory
+ */
+class Cache {
   /**
    * Generate a normalized cache key from search parameters
    */
@@ -42,69 +110,63 @@ class MemoryCache {
     return `reviews:${placeIdOrName}`;
   }
 
-  get<T>(key: string): T | null {
-    const entry = this.cache.get(key) as CacheEntry<T> | undefined;
-
-    if (!entry) {
-      return null;
-    }
-
-    if (Date.now() > entry.expiresAt) {
-      this.cache.delete(key);
-      return null;
-    }
-
-    return entry.data;
-  }
-
-  set<T>(key: string, data: T, ttlMinutes?: number): void {
-    const ttl = ttlMinutes ? ttlMinutes * 60 * 1000 : this.defaultTTL;
-    this.cache.set(key, {
-      data,
-      expiresAt: Date.now() + ttl,
-    });
-  }
-
-  delete(key: string): void {
-    this.cache.delete(key);
-  }
-
-  clear(): void {
-    this.cache.clear();
-  }
-
-  private cleanup(): void {
-    const now = Date.now();
-    const keysToDelete: string[] = [];
-    this.cache.forEach((entry, key) => {
-      if (now > entry.expiresAt) {
-        keysToDelete.push(key);
+  /**
+   * Get a value from cache
+   */
+  async get<T>(key: string): Promise<T | null> {
+    try {
+      if (redis) {
+        const data = await redis.get<T>(key);
+        return data;
       }
-    });
-    keysToDelete.forEach(key => this.cache.delete(key));
+      return memoryCache.get<T>(key);
+    } catch (error) {
+      console.error('[Cache] Error getting key:', key, error);
+      return null;
+    }
   }
 
   /**
-   * Get cache stats for debugging
+   * Set a value in cache with TTL
    */
-  stats(): { size: number; keys: string[] } {
-    return {
-      size: this.cache.size,
-      keys: Array.from(this.cache.keys()),
-    };
+  async set<T>(key: string, data: T, ttlMinutes: number): Promise<void> {
+    try {
+      if (redis) {
+        // Upstash Redis set with EX (expiry in seconds)
+        await redis.set(key, data, { ex: ttlMinutes * 60 });
+      } else {
+        memoryCache.set(key, data, ttlMinutes * 60 * 1000);
+      }
+    } catch (error) {
+      console.error('[Cache] Error setting key:', key, error);
+    }
+  }
+
+  /**
+   * Delete a value from cache
+   */
+  async delete(key: string): Promise<void> {
+    try {
+      if (redis) {
+        await redis.del(key);
+      } else {
+        memoryCache.delete(key);
+      }
+    } catch (error) {
+      console.error('[Cache] Error deleting key:', key, error);
+    }
+  }
+
+  /**
+   * Check if Redis is being used
+   */
+  isUsingRedis(): boolean {
+    return !!redis;
   }
 }
 
-// Singleton instance with 1 hour default TTL
-export const cache = new MemoryCache(60);
+// Export singleton instance
+export const cache = new Cache();
 
 // Export class for static methods
-export default MemoryCache;
-
-// Cache TTL constants (in minutes)
-export const CACHE_TTL = {
-  SEARCH_RESULTS: 60,      // 1 hour for search results
-  VISIBILITY: 60,          // 1 hour for visibility checks
-  REVIEWS: 30,             // 30 min for review data (more dynamic)
-  WEBSITE_ANALYSIS: 120,   // 2 hours for website analysis (rarely changes)
-};
+export default Cache;

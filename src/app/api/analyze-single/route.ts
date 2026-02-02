@@ -4,8 +4,7 @@ import { analyzeWebsite } from '@/lib/website-analyzer';
 import { checkSearchVisibility } from '@/lib/visibility';
 import { fetchBusinessReviews, ReviewData } from '@/lib/outscraper';
 import { classifyLocationType } from '@/utils/address';
-import { cache, CACHE_TTL } from '@/lib/cache';
-import MemoryCache from '@/lib/cache';
+import Cache, { cache, CACHE_TTL } from '@/lib/cache';
 import { checkRateLimit } from '@/lib/api-rate-limit';
 
 interface AnalyzeSingleRequest {
@@ -51,8 +50,8 @@ export async function POST(request: NextRequest) {
     const [visibilityResult, reviewData, websiteAnalysis] = await Promise.all([
       // Check visibility (with cache)
       (async () => {
-        const cacheKey = MemoryCache.visibilityKey(niche, location);
-        const cachedVisibility = cache.get<Map<string, boolean>>(cacheKey);
+        const cacheKey = Cache.visibilityKey(niche, location);
+        const cachedVisibility = await cache.get<Map<string, boolean>>(cacheKey);
 
         if (cachedVisibility && cachedVisibility.has(business.name)) {
           console.log(`[Analyze Single] Visibility cache HIT for ${business.name}`);
@@ -67,8 +66,8 @@ export async function POST(request: NextRequest) {
       // Fetch reviews (with cache)
       (async (): Promise<ReviewData> => {
         const query = business.placeId || `${business.name}, ${business.address}`;
-        const cacheKey = MemoryCache.reviewsKey(query);
-        const cachedReviews = cache.get<ReviewData>(cacheKey);
+        const cacheKey = Cache.reviewsKey(query);
+        const cachedReviews = await cache.get<ReviewData>(cacheKey);
 
         if (cachedReviews) {
           console.log(`[Analyze Single] Reviews cache HIT for ${business.name}`);
@@ -77,7 +76,7 @@ export async function POST(request: NextRequest) {
 
         console.log(`[Analyze Single] Fetching reviews for ${business.name}`);
         const result = await fetchBusinessReviews(query, 10);
-        cache.set(cacheKey, result, CACHE_TTL.REVIEWS);
+        await cache.set(cacheKey, result, CACHE_TTL.REVIEWS);
         return result;
       })(),
 
@@ -94,7 +93,7 @@ export async function POST(request: NextRequest) {
         }
 
         const cacheKey = `website:${business.website}`;
-        const cachedAnalysis = cache.get<WebsiteAnalysisResult>(cacheKey);
+        const cachedAnalysis = await cache.get<WebsiteAnalysisResult>(cacheKey);
 
         if (cachedAnalysis) {
           console.log(`[Analyze Single] Website cache HIT for ${business.name}`);
@@ -103,7 +102,7 @@ export async function POST(request: NextRequest) {
 
         console.log(`[Analyze Single] Analyzing website for ${business.name}`);
         const result = await analyzeWebsite(business.website);
-        cache.set(cacheKey, result, CACHE_TTL.WEBSITE_ANALYSIS);
+        await cache.set(cacheKey, result, CACHE_TTL.WEBSITE_ANALYSIS);
         return result;
       })(),
     ]);
