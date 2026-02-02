@@ -11,7 +11,8 @@
       "Bash(npx tsc:*)",
       "Bash(npm uninstall:*)",
       "Bash(pkill:*)",
-      "Bash(git mv:*)"
+      "Bash(git mv:*)",
+      "Bash(npm install:*)"
     ]
   }
 }

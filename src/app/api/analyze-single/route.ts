@@ -6,6 +6,7 @@ import { fetchBusinessReviews, ReviewData } from '@/lib/outscraper';
 import { classifyLocationType } from '@/utils/address';
 import { cache, CACHE_TTL } from '@/lib/cache';
 import MemoryCache from '@/lib/cache';
+import { checkRateLimit } from '@/lib/api-rate-limit';
 
 interface AnalyzeSingleRequest {
   business: Business;
@@ -29,6 +30,10 @@ function calculateDaysDormant(lastOwnerActivity: Date | null): number | null {
 }
 
 export async function POST(request: NextRequest) {
+  // Check rate limit
+  const rateLimitResponse = await checkRateLimit(request, 'analyze');
+  if (rateLimitResponse) return rateLimitResponse;
+
   try {
     const body: AnalyzeSingleRequest = await request.json();
 

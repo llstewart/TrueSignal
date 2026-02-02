@@ -3,8 +3,13 @@ import { searchGoogleMaps } from '@/lib/outscraper';
 import { SearchRequest, SearchResponse, Business } from '@/lib/types';
 import { cache, CACHE_TTL } from '@/lib/cache';
 import MemoryCache from '@/lib/cache';
+import { checkRateLimit } from '@/lib/api-rate-limit';
 
 export async function POST(request: NextRequest) {
+  // Check rate limit
+  const rateLimitResponse = await checkRateLimit(request, 'search');
+  if (rateLimitResponse) return rateLimitResponse;
+
   try {
     const body: SearchRequest = await request.json();
 

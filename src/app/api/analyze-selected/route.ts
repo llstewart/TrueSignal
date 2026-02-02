@@ -1,4 +1,4 @@
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { Business, EnrichedBusiness } from '@/lib/types';
 import { analyzeWebsite } from '@/lib/website-analyzer';
 import { batchCheckVisibility } from '@/lib/visibility';
@@ -7,6 +7,7 @@ import { classifyLocationType } from '@/utils/address';
 import { cache, CACHE_TTL } from '@/lib/cache';
 import MemoryCache from '@/lib/cache';
 import { Semaphore, sleep } from '@/lib/rate-limiter';
+import { checkRateLimit } from '@/lib/api-rate-limit';
 
 interface AnalyzeSelectedRequest {
   businesses: Business[];
@@ -25,6 +26,10 @@ function calculateDaysDormant(lastOwnerActivity: Date | null): number | null {
 }
 
 export async function POST(request: NextRequest) {
+  // Check rate limit
+  const rateLimitResponse = await checkRateLimit(request, 'analyze');
+  if (rateLimitResponse) return rateLimitResponse;
+
   const body: AnalyzeSelectedRequest = await request.json();
 
   if (!body.businesses || !Array.isArray(body.businesses) || body.businesses.length === 0) {

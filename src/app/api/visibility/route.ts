@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkSearchVisibility } from '@/lib/visibility';
 import { VisibilityRequest, VisibilityResponse } from '@/lib/types';
+import { checkRateLimit } from '@/lib/api-rate-limit';
 
 export async function POST(request: NextRequest) {
+  // Check rate limit
+  const rateLimitResponse = await checkRateLimit(request, 'visibility');
+  if (rateLimitResponse) return rateLimitResponse;
+
   try {
     const body: VisibilityRequest = await request.json();
 

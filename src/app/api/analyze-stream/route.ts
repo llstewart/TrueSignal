@@ -5,6 +5,7 @@ import { batchCheckVisibility } from '@/lib/visibility';
 import { fetchBatchReviews, ReviewData } from '@/lib/outscraper';
 import { classifyLocationType } from '@/utils/address';
 import { Semaphore, sleep } from '@/lib/rate-limiter';
+import { checkRateLimit } from '@/lib/api-rate-limit';
 
 // Configuration
 const FIRST_PAGE_SIZE = 20; // Prioritize first page for fast initial load
@@ -116,6 +117,10 @@ async function processBatch(
 }
 
 export async function POST(request: NextRequest) {
+  // Check rate limit
+  const rateLimitResponse = await checkRateLimit(request, 'analyze');
+  if (rateLimitResponse) return rateLimitResponse;
+
   const body: AnalyzeRequest = await request.json();
 
   if (!body.businesses || !Array.isArray(body.businesses)) {

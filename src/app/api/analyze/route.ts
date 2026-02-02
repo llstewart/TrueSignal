@@ -5,6 +5,7 @@ import { batchCheckVisibility } from '@/lib/visibility';
 import { classifyLocationType } from '@/utils/address';
 import { fetchBatchReviews, ReviewData } from '@/lib/outscraper';
 import { Semaphore, sleep } from '@/lib/rate-limiter';
+import { checkRateLimit } from '@/lib/api-rate-limit';
 
 // Configuration
 const ENABLE_REVIEWS_API = true; // Set to true to enable reviews fetching
@@ -26,6 +27,10 @@ function calculateDaysDormant(lastOwnerActivity: Date | null): number | null {
 }
 
 export async function POST(request: NextRequest) {
+  // Check rate limit
+  const rateLimitResponse = await checkRateLimit(request, 'analyze');
+  if (rateLimitResponse) return rateLimitResponse;
+
   try {
     const body: AnalyzeRequest = await request.json();
 
