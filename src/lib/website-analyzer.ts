@@ -160,58 +160,9 @@ export async function analyzeWebsite(url: string): Promise<WebsiteAnalysis> {
       }
     }
 
-    // Try to extract owner name
-    let ownerName: string | null = null;
-    for (const pattern of NAME_PATTERNS) {
-      const match = html.match(pattern);
-      if (match && match[1]) {
-        const candidate = match[1].trim();
-        // Validate: must be 2-4 words, only letters/spaces, max 40 chars, looks like a name
-        if (
-          candidate.length <= 40 &&
-          candidate.length >= 3 &&
-          /^[A-Za-z]+(?:\s+[A-Za-z]+){1,3}$/.test(candidate) &&
-          !candidate.toLowerCase().includes('contact') &&
-          !candidate.toLowerCase().includes('click') &&
-          !candidate.toLowerCase().includes('questions')
-        ) {
-          ownerName = candidate;
-          console.log(`[Website Analyzer] Found owner name: ${ownerName}`);
-          break;
-        }
-      }
-    }
-
-    // Try to extract phone number
-    let ownerPhone: string | null = null;
-
-    // First try tel: links
-    const telMatch = html.match(/href="tel:([^"]+)"/i);
-    if (telMatch && telMatch[1]) {
-      ownerPhone = telMatch[1].replace(/[^\d+\-\(\)\s]/g, '').trim();
-      console.log(`[Website Analyzer] Found phone from tel link: ${ownerPhone}`);
-    }
-
-    // If no tel link, try patterns
-    if (!ownerPhone) {
-      for (const pattern of PHONE_PATTERNS) {
-        const matches = html.match(pattern);
-        if (matches && matches.length > 0) {
-          // Filter out obvious non-phone numbers (too short, etc.)
-          const validPhone = matches.find(m => {
-            const digits = m.replace(/\D/g, '');
-            return digits.length >= 10 && digits.length <= 11;
-          });
-          if (validPhone) {
-            ownerPhone = validPhone;
-            console.log(`[Website Analyzer] Found phone: ${ownerPhone}`);
-            break;
-          }
-        }
-      }
-    }
-
-    // Skip contact page scanning for performance - owner info not displayed in UI
+    // Owner name/phone scraping disabled - feature coming soon
+    const ownerName: string | null = null;
+    const ownerPhone: string | null = null;
 
     // Build tech stack string
     let techStack = detectedCms || 'Custom';

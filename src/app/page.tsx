@@ -7,19 +7,41 @@ import { GeneralListTable } from '@/components/GeneralListTable';
 import { UpgradedListTable } from '@/components/UpgradedListTable';
 import { LoadingState } from '@/components/LoadingState';
 import { PremiumGate } from '@/components/PremiumGate';
+import { SavedAnalysesPanel } from '@/components/SavedAnalysesPanel';
+import { AuthModal } from '@/components/auth/AuthModal';
+import { UserMenu } from '@/components/auth/UserMenu';
+import { BillingModal } from '@/components/BillingModal';
+import { useUser } from '@/hooks/useUser';
+// Note: SessionIndicator removed - replaced by UserMenu
 import { Business, EnrichedBusiness, TableBusiness, PendingBusiness, isPendingBusiness } from '@/lib/types';
 import { exportGeneralListToCSV, exportEnrichedListToCSV } from '@/lib/export';
 
 type TabType = 'general' | 'upgraded';
 
 const SESSION_STORAGE_KEY = 'truesignal_session';
+const PERSISTENT_SESSION_ID_KEY = 'truesignal_sid';
+
+// Generate a unique session ID
+function generateSessionId(): string {
+  return `${Date.now()}-${Math.random().toString(36).substring(2, 15)}`;
+}
+
+// Get or create persistent session ID
+function getSessionId(): string {
+  if (typeof window === 'undefined') return '';
+  let sessionId = localStorage.getItem(PERSISTENT_SESSION_ID_KEY);
+  if (!sessionId) {
+    sessionId = generateSessionId();
+    localStorage.setItem(PERSISTENT_SESSION_ID_KEY, sessionId);
+  }
+  return sessionId;
+}
 
 interface SessionState {
   businesses: Business[];
   tableBusinesses: TableBusiness[];
   searchParams: { niche: string; location: string } | null;
   activeTab: TabType;
-  isPremium: boolean;
 }
 
 export default function Home() {
@@ -41,6 +63,12 @@ function HomeContent() {
   const router = useRouter();
   const urlSearchParams = useSearchParams();
 
+  // Auth state
+  const { user, subscription, isLoading: isAuthLoading, credits, tier, refreshUser, deductCredit } = useUser();
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
+  const [showBillingModal, setShowBillingModal] = useState(false);
+
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [tableBusinesses, setTableBusinesses] = useState<TableBusiness[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -51,16 +79,91 @@ function HomeContent() {
   const [selectedBusinesses, setSelectedBusinesses] = useState<Set<number>>(new Set());
   const [isCached, setIsCached] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
-  const [isPremium, setIsPremium] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [sessionId, setSessionId] = useState<string>('');
+  const [showSavedPanel, setShowSavedPanel] = useState(false);
+  const [savedAnalysesCount, setSavedAnalysesCount] = useState(0);
+  const [isSessionConnected, setIsSessionConnected] = useState(false);
+  const [isLoadingSaved, setIsLoadingSaved] = useState(false);
+
+  // User is considered premium if they're logged in (they get free credits to start)
+  const isPremium = !!user;
 
   const searchControllerRef = useRef<AbortController | null>(null);
   const analyzeControllerRef = useRef<AbortController | null>(null);
 
+  // Fetch saved analyses count for session indicator
+  const fetchSavedCount = useCallback(async () => {
+    if (!sessionId) return;
+    try {
+      const response = await fetch(`/api/session?sessionId=${encodeURIComponent(sessionId)}`);
+      if (response.ok) {
+        const data = await response.json();
+        const analyses = data.analyses || {};
+        const count = Object.keys(analyses).length;
+        setSavedAnalysesCount(count);
+        setIsSessionConnected(true);
+      }
+    } catch {
+      setIsSessionConnected(false);
+    }
+  }, [sessionId]);
+
+  // Load saved analyses from Redis for current search
+  const loadSavedAnalyses = useCallback(async (niche: string, location: string) => {
+    if (!sessionId) return;
+    setIsLoadingSaved(true);
+    try {
+      const response = await fetch(
+        `/api/session?sessionId=${encodeURIComponent(sessionId)}&niche=${encodeURIComponent(niche)}&location=${encodeURIComponent(location)}`
+      );
+      if (response.ok) {
+        const data = await response.json();
+        if (data.businesses && data.businesses.length > 0) {
+          console.log(`[Session] Loaded ${data.businesses.length} previously analyzed businesses`);
+          setTableBusinesses(data.businesses);
+        }
+        setIsSessionConnected(true);
+      }
+    } catch (error) {
+      console.error('[Session] Failed to load saved analyses:', error);
+      setIsSessionConnected(false);
+    } finally {
+      setIsLoadingSaved(false);
+    }
+  }, [sessionId]);
+
+  // Save analyses to Redis
+  const saveAnalysesToSession = useCallback(async (businesses: EnrichedBusiness[]) => {
+    if (!sessionId || !searchParams) return;
+    try {
+      await fetch('/api/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId,
+          niche: searchParams.niche,
+          location: searchParams.location,
+          businesses,
+        }),
+      });
+      console.log(`[Session] Saved ${businesses.length} analyzed businesses`);
+      // Refresh saved count
+      fetchSavedCount();
+    } catch (error) {
+      console.error('[Session] Failed to save analyses:', error);
+    }
+  }, [sessionId, searchParams, fetchSavedCount]);
+
   // Determine if we're in "results mode" (compact header) or "hero mode" (full landing)
   const hasResults = businesses.length > 0;
 
+  // Initialize session ID and restore state
   useEffect(() => {
+    // Get or create persistent session ID
+    const sid = getSessionId();
+    setSessionId(sid);
+
     try {
       const saved = sessionStorage.getItem(SESSION_STORAGE_KEY);
       if (saved) {
@@ -69,13 +172,27 @@ function HomeContent() {
         setTableBusinesses(state.tableBusinesses || []);
         setSearchParams(state.searchParams);
         setActiveTab(state.activeTab || 'general');
-        setIsPremium(state.isPremium || false);
+        // isPremium is now derived from auth, not stored in session
       }
     } catch (e) {
       console.error('Failed to restore session:', e);
     }
     setIsInitialized(true);
   }, []);
+
+  // Load saved analyses from Redis when search params change
+  useEffect(() => {
+    if (sessionId && searchParams && tableBusinesses.length === 0) {
+      loadSavedAnalyses(searchParams.niche, searchParams.location);
+    }
+  }, [sessionId, searchParams, loadSavedAnalyses, tableBusinesses.length]);
+
+  // Fetch saved count when session is initialized
+  useEffect(() => {
+    if (sessionId) {
+      fetchSavedCount();
+    }
+  }, [sessionId, fetchSavedCount]);
 
   useEffect(() => {
     if (!isInitialized) return;
@@ -85,13 +202,12 @@ function HomeContent() {
         tableBusinesses,
         searchParams,
         activeTab,
-        isPremium,
       };
       sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(state));
     } catch (e) {
       console.error('Failed to save session:', e);
     }
-  }, [businesses, tableBusinesses, searchParams, activeTab, isPremium, isInitialized]);
+  }, [businesses, tableBusinesses, searchParams, activeTab, isInitialized]);
 
   useEffect(() => {
     if (!isInitialized || !searchParams) return;
@@ -198,20 +314,61 @@ function HomeContent() {
   } | null>(null);
 
   const handleUpgradeClick = () => {
-    setIsPremium(true);
+    // User needs to sign up to upgrade
+    setAuthMode('signup');
+    setShowAuthModal(true);
     setShowUpgradeModal(false);
   };
 
+  // Load a search from saved history
+  const handleLoadFromHistory = async (niche: string, location: string) => {
+    setSearchParams({ niche, location });
+    setActiveTab('upgraded');
+    // Search will be triggered by URL params, and saved analyses will load via useEffect
+    router.replace(`?niche=${encodeURIComponent(niche)}&location=${encodeURIComponent(location)}&tab=upgraded`);
+    // Trigger a fresh search to populate the general list
+    handleSearch(niche, location);
+  };
+
+  // Handle clearing history
+  const handleClearHistory = () => {
+    setTableBusinesses([]);
+    setSavedAnalysesCount(0);
+  };
+
+  // Get current search key for highlighting in saved panel
+  const currentSearchKey = searchParams
+    ? `${searchParams.niche.toLowerCase().trim()}|${searchParams.location.toLowerCase().trim()}`
+    : undefined;
+
   const handleAnalyze = async () => {
     if (!searchParams || businesses.length === 0) return;
-    if (!isPremium) {
-      setActiveTab('upgraded');
+
+    // Check if user is logged in
+    if (!user) {
+      setAuthMode('signup');
+      setShowAuthModal(true);
       return;
     }
 
+    // Check if user has credits
     const businessesToAnalyze = selectedBusinesses.size > 0
       ? Array.from(selectedBusinesses).map(i => businesses[i])
       : businesses;
+
+    const creditsNeeded = businessesToAnalyze.length;
+    if (credits < creditsNeeded) {
+      setError(`You need ${creditsNeeded} credits to analyze ${businessesToAnalyze.length} businesses. You have ${credits} credits remaining.`);
+      setShowBillingModal(true);
+      return;
+    }
+
+    // Deduct credits
+    const success = await deductCredit(creditsNeeded);
+    if (!success) {
+      setError('Failed to deduct credits. Please try again.');
+      return;
+    }
 
     if (analyzeControllerRef.current) analyzeControllerRef.current.abort();
     const controller = new AbortController();
@@ -224,7 +381,16 @@ function HomeContent() {
       ...b,
       isEnriching: true as const,
     }));
-    setTableBusinesses(pendingBusinesses);
+
+    // Merge with existing analyzed businesses (keep previously analyzed, add new pending)
+    setTableBusinesses(prev => {
+      const existingAnalyzed = prev.filter(b => !isPendingBusiness(b));
+      const existingIds = new Set(existingAnalyzed.map(b => b.placeId || b.name));
+      // Only add pending businesses that aren't already analyzed
+      const newPending = pendingBusinesses.filter(b => !existingIds.has(b.placeId || b.name));
+      return [...existingAnalyzed, ...newPending];
+    });
+
     setAnalyzeProgress({ completed: 0, total: businessesToAnalyze.length, phase: 1, totalPhases: 3, message: 'Starting analysis...' });
     setActiveTab('upgraded');
 
@@ -333,6 +499,15 @@ function HomeContent() {
     } finally {
       setIsAnalyzing(false);
       setAnalyzeProgress(null);
+
+      // Save all analyzed businesses to Redis session
+      setTableBusinesses(current => {
+        const enrichedOnly = current.filter((b): b is EnrichedBusiness => !isPendingBusiness(b));
+        if (enrichedOnly.length > 0) {
+          saveAnalysesToSession(enrichedOnly);
+        }
+        return current;
+      });
     }
   };
 
@@ -342,6 +517,46 @@ function HomeContent() {
   if (!hasResults && !isSearching) {
     return (
       <div className="min-h-screen bg-[#0a0a0b] flex flex-col">
+        {/* Top Navigation */}
+        <header className="absolute top-0 left-0 right-0 z-50">
+          <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
+            <div className="text-xl font-bold text-white">
+              TrueSignal<span className="text-violet-500">.</span>
+            </div>
+            {isAuthLoading ? (
+              <div className="w-8 h-8 rounded-full bg-zinc-800 animate-pulse" />
+            ) : user ? (
+              <UserMenu
+                user={user}
+                credits={credits}
+                tier={tier}
+                onOpenBilling={() => setShowBillingModal(true)}
+              />
+            ) : (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    setAuthMode('signin');
+                    setShowAuthModal(true);
+                  }}
+                  className="px-4 py-2 text-sm font-medium text-zinc-300 hover:text-white transition-colors"
+                >
+                  Sign in
+                </button>
+                <button
+                  onClick={() => {
+                    setAuthMode('signup');
+                    setShowAuthModal(true);
+                  }}
+                  className="px-4 py-2 text-sm font-medium bg-violet-600 hover:bg-violet-500 text-white rounded-lg transition-colors"
+                >
+                  Get Started
+                </button>
+              </div>
+            )}
+          </div>
+        </header>
+
         {/* Centered Hero Content */}
         <div className="flex-1 flex items-center justify-center px-4">
           <div className="w-full max-w-3xl mx-auto text-center">
@@ -379,6 +594,19 @@ function HomeContent() {
               </div>
             </div>
 
+            {/* Saved Analyses Link */}
+            {savedAnalysesCount > 0 && (
+              <button
+                onClick={() => setShowSavedPanel(true)}
+                className="mt-8 inline-flex items-center gap-2 px-4 py-2 text-sm text-zinc-400 hover:text-white border border-zinc-700 hover:border-zinc-600 rounded-lg transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                View {savedAnalysesCount} saved {savedAnalysesCount === 1 ? 'analysis' : 'analyses'}
+              </button>
+            )}
+
             {/* Error State */}
             {error && (
               <div className="mt-8 p-4 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm">
@@ -387,6 +615,34 @@ function HomeContent() {
             )}
           </div>
         </div>
+
+        {/* Saved Analyses Panel (Hero Mode) */}
+        <SavedAnalysesPanel
+          isOpen={showSavedPanel}
+          onClose={() => setShowSavedPanel(false)}
+          sessionId={user?.id || sessionId}
+          currentSearchKey={currentSearchKey}
+          onLoadSearch={handleLoadFromHistory}
+          onClearHistory={handleClearHistory}
+        />
+
+        {/* Auth Modal (Hero Mode) */}
+        <AuthModal
+          isOpen={showAuthModal}
+          onClose={() => setShowAuthModal(false)}
+          defaultMode={authMode}
+        />
+
+        {/* Billing Modal (Hero Mode) */}
+        <BillingModal
+          isOpen={showBillingModal}
+          onClose={() => {
+            setShowBillingModal(false);
+            refreshUser();
+          }}
+          currentTier={tier}
+          creditsRemaining={credits}
+        />
       </div>
     );
   }
@@ -436,6 +692,52 @@ function HomeContent() {
                     Cached
                   </span>
                 )}
+              </div>
+            )}
+
+            {/* Auth Section */}
+            {isAuthLoading ? (
+              <div className="w-8 h-8 rounded-full bg-zinc-800 animate-pulse" />
+            ) : user ? (
+              <div className="flex items-center gap-2">
+                {/* History Button */}
+                <button
+                  onClick={() => setShowSavedPanel(true)}
+                  className="p-2 hover:bg-zinc-800 rounded-lg transition-colors"
+                  title="Saved analyses"
+                >
+                  <svg className="w-5 h-5 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </button>
+                {/* User Menu */}
+                <UserMenu
+                  user={user}
+                  credits={credits}
+                  tier={tier}
+                  onOpenBilling={() => setShowBillingModal(true)}
+                />
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    setAuthMode('signin');
+                    setShowAuthModal(true);
+                  }}
+                  className="px-4 py-2 text-sm font-medium text-zinc-300 hover:text-white transition-colors"
+                >
+                  Sign in
+                </button>
+                <button
+                  onClick={() => {
+                    setAuthMode('signup');
+                    setShowAuthModal(true);
+                  }}
+                  className="px-4 py-2 text-sm font-medium bg-violet-600 hover:bg-violet-500 text-white rounded-lg transition-colors"
+                >
+                  Get Started
+                </button>
               </div>
             )}
           </div>
@@ -539,14 +841,11 @@ function HomeContent() {
                   </button>
                 )}
 
-                {/* Dev toggle */}
+                {/* Dev info - shows current auth status */}
                 {process.env.NODE_ENV === 'development' && (
-                  <button
-                    onClick={() => setIsPremium(!isPremium)}
-                    className="px-2 py-1 text-xs border border-zinc-700 rounded text-zinc-500 hover:text-white"
-                  >
-                    {isPremium ? 'Pro ✓' : 'Free'}
-                  </button>
+                  <span className="px-2 py-1 text-xs border border-zinc-700 rounded text-zinc-500">
+                    {user ? `${credits} credits` : 'Not signed in'}
+                  </span>
                 )}
               </div>
             </div>
@@ -644,6 +943,34 @@ function HomeContent() {
           </div>
         )}
       </main>
+
+      {/* Saved Analyses Panel */}
+      <SavedAnalysesPanel
+        isOpen={showSavedPanel}
+        onClose={() => setShowSavedPanel(false)}
+        sessionId={user?.id || sessionId}
+        currentSearchKey={currentSearchKey}
+        onLoadSearch={handleLoadFromHistory}
+        onClearHistory={handleClearHistory}
+      />
+
+      {/* Auth Modal */}
+      <AuthModal
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+        defaultMode={authMode}
+      />
+
+      {/* Billing Modal */}
+      <BillingModal
+        isOpen={showBillingModal}
+        onClose={() => {
+          setShowBillingModal(false);
+          refreshUser();
+        }}
+        currentTier={tier}
+        creditsRemaining={credits}
+      />
     </div>
   );
 }

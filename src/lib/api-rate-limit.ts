@@ -71,15 +71,23 @@ function getClientIp(request: NextRequest): string {
 }
 
 /**
- * Rate limit response with proper headers
+ * Rate limit response with proper headers and friendly message
  */
-function rateLimitResponse(reset: number): NextResponse {
+function rateLimitResponse(reset: number, type: RateLimitType): NextResponse {
   const retryAfter = Math.ceil((reset - Date.now()) / 1000);
+
+  const messages: Record<RateLimitType, string> = {
+    search: `You've made too many searches. Please wait ${retryAfter} seconds before searching again.`,
+    analyze: `You've made too many analysis requests. Please wait ${retryAfter} seconds before analyzing again.`,
+    visibility: `Too many visibility checks. Please wait ${retryAfter} seconds.`,
+  };
 
   return NextResponse.json(
     {
-      error: 'Too many requests. Please try again later.',
+      error: messages[type],
+      errorType: 'RATE_LIMIT',
       retryAfter,
+      limitType: type,
     },
     {
       status: 429,
@@ -116,7 +124,7 @@ export async function checkRateLimit(
 
   if (!success) {
     console.log(`[Rate Limit] Blocked ${ip} for ${type} endpoint`);
-    return rateLimitResponse(reset);
+    return rateLimitResponse(reset, type);
   }
 
   // Log rate limit status in development

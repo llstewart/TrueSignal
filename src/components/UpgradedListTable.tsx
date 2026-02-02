@@ -620,33 +620,11 @@ export function UpgradedListTable({ businesses, niche, location, isLoadingMore, 
                     </StatusTag>
                   </td>
                   {/* Upgraded List additional columns */}
-                  <td className={`${cellPadding} text-sm text-muted-foreground`}>
-                    {isPending ? <CellSpinner /> : (
-                      (business as EnrichedBusiness).ownerName ? (
-                        <div className="flex items-center gap-2">
-                          <span>{(business as EnrichedBusiness).ownerName}</span>
-                          <div className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-                            <CopyButton text={(business as EnrichedBusiness).ownerName!} label="owner name" />
-                          </div>
-                        </div>
-                      ) : (
-                        <span className="text-muted-foreground/50 text-xs">Not found</span>
-                      )
-                    )}
+                  <td className={`${cellPadding} text-sm`}>
+                    <span className="text-muted-foreground/60 text-xs italic">Feature coming soon</span>
                   </td>
-                  <td className={`${cellPadding} text-sm text-muted-foreground`}>
-                    {isPending ? <CellSpinner /> : (
-                      (business as EnrichedBusiness).ownerPhone ? (
-                        <div className="flex items-center gap-2">
-                          <span>{(business as EnrichedBusiness).ownerPhone}</span>
-                          <div className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-                            <CopyButton text={(business as EnrichedBusiness).ownerPhone!} label="owner phone" />
-                          </div>
-                        </div>
-                      ) : (
-                        <span className="text-muted-foreground/50 text-xs">Not found</span>
-                      )
-                    )}
+                  <td className={`${cellPadding} text-sm`}>
+                    <span className="text-muted-foreground/60 text-xs italic">Feature coming soon</span>
                   </td>
                   <td className={`${cellPadding} text-sm text-muted-foreground`}>
                     {isPending ? <CellSpinner /> : (
