@@ -6,7 +6,7 @@ import { useUser } from '@/hooks/useUser';
 import { AuthModal } from '@/components/auth/AuthModal';
 import { UserMenu } from '@/components/auth/UserMenu';
 import { SettingsModal } from '@/components/SettingsModal';
-import { EnrichedBusiness } from '@/lib/types';
+import { EnrichedBusiness, isEnrichedBusiness } from '@/lib/types';
 import { calculateSeoNeedScore, getSeoNeedSummary } from '@/lib/signals';
 
 interface SavedAnalysis {
@@ -47,15 +47,21 @@ export default function HistoryPage() {
         const data = await response.json();
         const analyses = data.analyses || {};
 
-        const analysesList: SavedAnalysis[] = Object.entries(analyses).map(
-          ([key, value]: [string, any]) => ({
-            searchKey: key,
-            niche: value.niche,
-            location: value.location,
-            businesses: value.businesses || [],
-            analyzedAt: value.analyzedAt,
+        const analysesList: SavedAnalysis[] = Object.entries(analyses)
+          .map(([key, value]: [string, any]) => {
+            // Filter to only include actually enriched businesses
+            const allBusinesses = value.businesses || [];
+            const enrichedBusinesses = allBusinesses.filter((b: any) => isEnrichedBusiness(b));
+            return {
+              searchKey: key,
+              niche: value.niche,
+              location: value.location,
+              businesses: enrichedBusinesses,
+              analyzedAt: value.analyzedAt,
+            };
           })
-        );
+          // Only include analyses that have at least one enriched business
+          .filter(analysis => analysis.businesses.length > 0);
 
         // Sort by most recent first
         analysesList.sort(

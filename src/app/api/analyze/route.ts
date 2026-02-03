@@ -6,6 +6,7 @@ import { classifyLocationType } from '@/utils/address';
 import { fetchBatchReviews, ReviewData } from '@/lib/outscraper';
 import { Semaphore, sleep } from '@/lib/rate-limiter';
 import { checkRateLimit } from '@/lib/api-rate-limit';
+import { createClient } from '@/lib/supabase/server';
 
 // Configuration
 const ENABLE_REVIEWS_API = true; // Set to true to enable reviews fetching
@@ -31,6 +32,31 @@ export async function POST(request: NextRequest) {
   const rateLimitResponse = await checkRateLimit(request, 'analyze');
   if (rateLimitResponse) return rateLimitResponse;
 
+  // Require authentication
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    return NextResponse.json({
+      error: 'Authentication required',
+      requiresAuth: true
+    }, { status: 401 });
+  }
+
+  // Check subscription tier - only paid users can analyze
+  const { data: subscription } = await supabase
+    .from('subscriptions')
+    .select('tier, credits_remaining, credits_purchased')
+    .eq('user_id', user.id)
+    .single();
+
+  if (!subscription || subscription.tier === 'free') {
+    return NextResponse.json({
+      error: 'Upgrade to a paid plan to use Signal Pro analysis',
+      requiresUpgrade: true
+    }, { status: 403 });
+  }
+
   try {
     const body: AnalyzeRequest = await request.json();
 
@@ -46,6 +72,18 @@ export async function POST(request: NextRequest) {
         { error: 'Niche and location are required' },
         { status: 400 }
       );
+    }
+
+    // Validate credits before analysis
+    const totalCredits = (subscription.credits_remaining || 0) + (subscription.credits_purchased || 0);
+    const requestedCount = body.businesses.length;
+    if (totalCredits < requestedCount) {
+      return NextResponse.json({
+        error: `Insufficient credits. You have ${totalCredits} credits but requested ${requestedCount} analyses.`,
+        insufficientCredits: true,
+        creditsRemaining: totalCredits,
+        creditsRequired: requestedCount
+      }, { status: 402 });
     }
 
     const totalBusinesses = body.businesses.length;

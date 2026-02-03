@@ -98,6 +98,18 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
     return;
   }
 
+  // IDEMPOTENCY CHECK: Check if this checkout session was already processed
+  const { data: existingTransaction } = await getSupabase()
+    .from('credit_transactions')
+    .select('id')
+    .eq('stripe_session_id', session.id)
+    .single();
+
+  if (existingTransaction) {
+    console.log(`[Stripe Webhook] Checkout ${session.id} already processed, skipping (idempotent)`);
+    return;
+  }
+
   console.log(`[Stripe Webhook] Processing checkout for user ${userId}, type: ${type}`);
 
   if (type === 'credits') {
@@ -133,6 +145,19 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
           console.error('[Stripe Webhook] Error creating subscription:', insertError);
           return;
         }
+
+        // Log transaction for idempotency tracking
+        await getSupabase()
+          .from('credit_transactions')
+          .insert({
+            user_id: userId,
+            amount: credits,
+            type: 'purchase',
+            description: `Purchased ${credits} credits (new user)`,
+            balance_after: 5 + credits,
+            stripe_session_id: session.id,
+          });
+
         console.log(`[Stripe Webhook] Created subscription with ${credits} purchased credits`);
         return;
       }
@@ -164,7 +189,7 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
         }
       }
 
-      // Log the transaction
+      // Log the transaction with stripe_session_id for idempotency
       await getSupabase()
         .from('credit_transactions')
         .insert({
@@ -173,6 +198,7 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
           type: 'purchase',
           description: `Purchased ${credits} credits`,
           balance_after: (existingSub.credits_purchased || 0) + (existingSub.credits_remaining || 0) + credits,
+          stripe_session_id: session.id,
         });
 
       console.log(`[Stripe Webhook] Successfully added ${credits} credits to user ${userId}`);
@@ -208,6 +234,17 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
       if (updateError) {
         console.error('[Stripe Webhook] Error updating subscription on checkout:', updateError);
       } else {
+        // Log transaction for tracking
+        await getSupabase()
+          .from('credit_transactions')
+          .insert({
+            user_id: userId,
+            amount: tierConfig.credits,
+            type: 'subscription_grant',
+            description: `Subscription activated: ${tier} (${tierConfig.credits} credits)`,
+            balance_after: tierConfig.credits,
+            stripe_session_id: session.id,
+          });
         console.log(`[Stripe Webhook] Updated subscription to ${tier} with ${tierConfig.credits} credits`);
       }
     } else {
@@ -226,6 +263,17 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
       if (insertError) {
         console.error('[Stripe Webhook] Error creating subscription on checkout:', insertError);
       } else {
+        // Log transaction for tracking
+        await getSupabase()
+          .from('credit_transactions')
+          .insert({
+            user_id: userId,
+            amount: tierConfig.credits,
+            type: 'subscription_grant',
+            description: `New subscription: ${tier} (${tierConfig.credits} credits)`,
+            balance_after: tierConfig.credits,
+            stripe_session_id: session.id,
+          });
         console.log(`[Stripe Webhook] Created subscription ${tier} with ${tierConfig.credits} credits`);
       }
     }

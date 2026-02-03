@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { isEnrichedBusiness } from '@/lib/types';
 
 interface SavedSearch {
   searchKey: string;
@@ -50,13 +51,21 @@ export function SavedAnalysesPanel({
         const data = await response.json();
         const analyses = data.analyses || {};
 
-        const searches: SavedSearch[] = Object.entries(analyses).map(([key, value]: [string, any]) => ({
-          searchKey: key,
-          niche: value.niche,
-          location: value.location,
-          businessCount: value.businesses?.length || 0,
-          analyzedAt: value.analyzedAt,
-        }));
+        const searches: SavedSearch[] = Object.entries(analyses)
+          .map(([key, value]: [string, any]) => {
+            // Only count actually enriched businesses
+            const allBusinesses = value.businesses || [];
+            const enrichedCount = allBusinesses.filter((b: any) => isEnrichedBusiness(b)).length;
+            return {
+              searchKey: key,
+              niche: value.niche,
+              location: value.location,
+              businessCount: enrichedCount,
+              analyzedAt: value.analyzedAt,
+            };
+          })
+          // Only show analyses that have at least one enriched business
+          .filter(search => search.businessCount > 0);
 
         // Sort by most recent first
         searches.sort((a, b) => new Date(b.analyzedAt).getTime() - new Date(a.analyzedAt).getTime());

@@ -84,6 +84,7 @@ CREATE TABLE public.credit_transactions (
   description TEXT,
   metadata JSONB DEFAULT '{}',
   balance_after INTEGER NOT NULL, -- Credit balance after this transaction
+  stripe_session_id TEXT, -- For idempotency on webhook retries
   created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
 );
 
@@ -97,6 +98,7 @@ CREATE POLICY "Users can view own transactions" ON public.credit_transactions
 -- Create index for faster queries
 CREATE INDEX idx_credit_transactions_user_id ON public.credit_transactions(user_id);
 CREATE INDEX idx_credit_transactions_created_at ON public.credit_transactions(created_at DESC);
+CREATE UNIQUE INDEX idx_credit_transactions_stripe_session ON public.credit_transactions(stripe_session_id) WHERE stripe_session_id IS NOT NULL;
 
 -- ============================================
 -- SAVED ANALYSES TABLE

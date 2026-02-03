@@ -6,6 +6,7 @@ import { fetchBatchReviews, ReviewData } from '@/lib/outscraper';
 import { classifyLocationType } from '@/utils/address';
 import { Semaphore, sleep } from '@/lib/rate-limiter';
 import { checkRateLimit } from '@/lib/api-rate-limit';
+import { createClient } from '@/lib/supabase/server';
 
 // Configuration
 const FIRST_PAGE_SIZE = 20; // Prioritize first page for fast initial load
@@ -121,11 +122,56 @@ export async function POST(request: NextRequest) {
   const rateLimitResponse = await checkRateLimit(request, 'analyze');
   if (rateLimitResponse) return rateLimitResponse;
 
+  // Require authentication
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    return new Response(JSON.stringify({
+      error: 'Authentication required',
+      requiresAuth: true
+    }), {
+      status: 401,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  // Check subscription tier - only paid users can analyze
+  const { data: subscription } = await supabase
+    .from('subscriptions')
+    .select('tier, credits_remaining')
+    .eq('user_id', user.id)
+    .single();
+
+  if (!subscription || subscription.tier === 'free') {
+    return new Response(JSON.stringify({
+      error: 'Upgrade to a paid plan to use Signal Pro analysis',
+      requiresUpgrade: true
+    }), {
+      status: 403,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
   const body: AnalyzeRequest = await request.json();
 
   if (!body.businesses || !Array.isArray(body.businesses)) {
     return new Response(JSON.stringify({ error: 'Businesses array is required' }), {
       status: 400,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  // Validate credits before analysis
+  const requestedCount = body.businesses.length;
+  if (subscription.credits_remaining !== null && subscription.credits_remaining < requestedCount) {
+    return new Response(JSON.stringify({
+      error: `Insufficient credits. You have ${subscription.credits_remaining} credits but requested ${requestedCount} analyses.`,
+      insufficientCredits: true,
+      creditsRemaining: subscription.credits_remaining,
+      creditsRequired: requestedCount
+    }), {
+      status: 402,
       headers: { 'Content-Type': 'application/json' },
     });
   }

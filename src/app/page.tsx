@@ -14,7 +14,7 @@ import { BillingModal } from '@/components/BillingModal';
 import { SettingsModal } from '@/components/SettingsModal';
 import { useUser } from '@/hooks/useUser';
 // Note: SessionIndicator removed - replaced by UserMenu
-import { Business, EnrichedBusiness, TableBusiness, PendingBusiness, isPendingBusiness } from '@/lib/types';
+import { Business, EnrichedBusiness, TableBusiness, PendingBusiness, isPendingBusiness, isEnrichedBusiness } from '@/lib/types';
 import { exportGeneralListToCSV, exportEnrichedListToCSV } from '@/lib/export';
 
 type TabType = 'general' | 'upgraded';
@@ -157,8 +157,12 @@ function HomeContent() {
       if (response.ok) {
         const data = await response.json();
         if (data.businesses && data.businesses.length > 0) {
-          console.log(`[Session] Loaded ${data.businesses.length} previously saved businesses`);
-          setTableBusinesses(data.businesses);
+          // Filter to only include actually enriched businesses
+          const enrichedBusinesses = data.businesses.filter((b: any) => isEnrichedBusiness(b));
+          if (enrichedBusinesses.length > 0) {
+            console.log(`[Session] Loaded ${enrichedBusinesses.length} previously analyzed businesses`);
+            setTableBusinesses(enrichedBusinesses);
+          }
         }
         setIsSessionConnected(true);
       }
@@ -349,18 +353,8 @@ function HomeContent() {
       setBusinesses(data.businesses);
       setIsCached(data.cached || false);
 
-      // Auto-save for logged-in users
-      if (data.businesses.length > 0) {
-        fetch('/api/session', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            niche,
-            location,
-            businesses: data.businesses,
-          }),
-        }).catch(err => console.error('[Session] Failed to save search:', err));
-      }
+      // Note: We don't auto-save raw search results to session API
+      // Only enriched/analyzed businesses get saved (via saveAnalysesToSession)
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') return;
       setError(err instanceof Error ? err.message : 'An unexpected error occurred');
@@ -426,18 +420,8 @@ function HomeContent() {
       setIsCached(data.cached || false);
       setActiveTab('general');
 
-      // Auto-save general list for logged-in users
-      if (data.businesses.length > 0) {
-        fetch('/api/session', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            niche,
-            location,
-            businesses: data.businesses,
-          }),
-        }).catch(err => console.error('[Session] Failed to save search:', err));
-      }
+      // Note: We don't auto-save raw search results to session API
+      // Only enriched/analyzed businesses get saved (via saveAnalysesToSession)
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') return;
       setError(err instanceof Error ? err.message : 'An unexpected error occurred');
@@ -569,7 +553,34 @@ function HomeContent() {
         signal: controller.signal,
       });
 
-      if (!response.ok) throw new Error('Analysis failed');
+      if (!response.ok) {
+        // Handle auth and billing errors
+        try {
+          const errorData = await response.json();
+          if (errorData.requiresAuth) {
+            setIsAnalyzing(false);
+            setError('Please sign in to use Signal Pro analysis');
+            setAuthMode('signin');
+            setShowAuthModal(true);
+            return;
+          }
+          if (errorData.requiresUpgrade) {
+            setIsAnalyzing(false);
+            setError('Upgrade to a paid plan to use Signal Pro analysis');
+            setShowBillingModal(true);
+            return;
+          }
+          if (errorData.insufficientCredits) {
+            setIsAnalyzing(false);
+            setError(`Insufficient credits. You have ${errorData.creditsRemaining} but need ${errorData.creditsRequired}.`);
+            setShowBillingModal(true);
+            return;
+          }
+          throw new Error(errorData.error || 'Analysis failed');
+        } catch (parseError) {
+          throw new Error('Analysis failed');
+        }
+      }
 
       const reader = response.body?.getReader();
       if (!reader) throw new Error('No response body');
@@ -661,9 +672,11 @@ function HomeContent() {
       setIsAnalyzing(false);
       setAnalyzeProgress(null);
 
-      // Save all analyzed businesses to Redis session
+      // Save only actually enriched businesses to session (not pending, not raw)
       setTableBusinesses(current => {
-        const enrichedOnly = current.filter((b): b is EnrichedBusiness => !isPendingBusiness(b));
+        const enrichedOnly = current.filter((b): b is EnrichedBusiness =>
+          !isPendingBusiness(b) && isEnrichedBusiness(b)
+        );
         if (enrichedOnly.length > 0) {
           saveAnalysesToSession(enrichedOnly);
         }
