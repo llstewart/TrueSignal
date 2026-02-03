@@ -1,0 +1,172 @@
+'use client';
+
+import { ReactNode } from 'react';
+import { TabContent, TabHeader } from './AppShell';
+
+interface RecentSearch {
+  id: string;
+  niche: string;
+  location: string;
+  totalCount: number;
+  analyzedCount: number;
+  lastAccessed: Date;
+}
+
+interface SearchTabProps {
+  // Search form component
+  searchForm: ReactNode;
+  // Results component (when has results)
+  results?: ReactNode;
+  // Recent searches for quick access
+  recentSearches?: RecentSearch[];
+  // Callbacks
+  onRecentSearchClick?: (search: RecentSearch) => void;
+  onLookupClick?: () => void;
+  // State
+  hasResults?: boolean;
+  credits: number;
+}
+
+export function SearchTab({
+  searchForm,
+  results,
+  recentSearches = [],
+  onRecentSearchClick,
+  onLookupClick,
+  hasResults = false,
+  credits,
+}: SearchTabProps) {
+  // If we have results, show the results view
+  if (hasResults && results) {
+    return (
+      <div className="min-h-full">
+        {/* Compact header with search */}
+        <div className="sticky top-0 z-40 bg-[#0f0f10]/80 backdrop-blur-xl border-b border-zinc-800/50">
+          <div className="max-w-[1400px] mx-auto px-4 py-3">
+            <div className="flex items-center gap-4">
+              {searchForm}
+            </div>
+          </div>
+        </div>
+
+        {/* Results */}
+        <div className="max-w-[1400px] mx-auto">
+          {results}
+        </div>
+      </div>
+    );
+  }
+
+  // Hero/empty state
+  return (
+    <TabContent className="min-h-full flex flex-col">
+      <div className="flex-1 flex items-center justify-center py-8 md:py-16">
+        <div className="w-full max-w-2xl mx-auto text-center px-4">
+          {/* Logo - visible on mobile since no sidebar */}
+          <h1 className="md:hidden text-3xl font-bold text-white mb-2">
+            TrueSignal<span className="text-violet-500">.</span>
+          </h1>
+
+          {/* Tagline */}
+          <p className="text-zinc-400 text-base md:text-lg mb-8 max-w-md mx-auto">
+            Find businesses that actually need your services.
+          </p>
+
+          {/* Search Form */}
+          <div className="mb-6">
+            {searchForm}
+          </div>
+
+          {/* Lookup specific business */}
+          {onLookupClick && (
+            <button
+              onClick={onLookupClick}
+              className="text-sm text-zinc-500 hover:text-violet-400 transition-colors flex items-center gap-2 mx-auto mb-8"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              Or look up a specific business
+            </button>
+          )}
+
+          {/* Credit info */}
+          <p className="text-xs text-zinc-600 mb-8">
+            1 credit per search · 1 credit per business analysis · <span className="text-violet-400">{credits} credits remaining</span>
+          </p>
+
+          {/* Recent Searches */}
+          {recentSearches.length > 0 && (
+            <div className="border-t border-zinc-800/50 pt-8">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-sm font-medium text-zinc-400">Recent Searches</h2>
+              </div>
+              <div className="space-y-2">
+                {recentSearches.slice(0, 3).map((search) => (
+                  <button
+                    key={search.id}
+                    onClick={() => onRecentSearchClick?.(search)}
+                    className="w-full flex items-center justify-between p-3 rounded-lg bg-zinc-900/50 hover:bg-zinc-800/50 transition-colors text-left group"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span
+                        className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                          search.analyzedCount > 0 ? 'bg-violet-500' : 'bg-zinc-600'
+                        }`}
+                      />
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-white truncate">
+                          {search.niche}
+                        </p>
+                        <p className="text-xs text-zinc-500 truncate">
+                          {search.location}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 flex-shrink-0">
+                      <span className="text-xs text-zinc-500">
+                        {search.analyzedCount > 0
+                          ? `${search.analyzedCount} analyzed`
+                          : `${search.totalCount} found`}
+                      </span>
+                      <svg
+                        className="w-4 h-4 text-zinc-600 group-hover:text-zinc-400 transition-colors"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Empty state for new users */}
+          {recentSearches.length === 0 && (
+            <div className="border-t border-zinc-800/50 pt-8">
+              <div className="flex items-center justify-center gap-8 text-sm text-zinc-600">
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-full bg-violet-500/10 flex items-center justify-center text-violet-400 text-xs font-medium">1</div>
+                  <span>Search niche</span>
+                </div>
+                <div className="hidden sm:block w-8 h-px bg-zinc-800" />
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-full bg-violet-500/10 flex items-center justify-center text-violet-400 text-xs font-medium">2</div>
+                  <span>Scan market</span>
+                </div>
+                <div className="hidden sm:block w-8 h-px bg-zinc-800" />
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-full bg-violet-500/10 flex items-center justify-center text-violet-400 text-xs font-medium">3</div>
+                  <span>Find signals</span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </TabContent>
+  );
+}

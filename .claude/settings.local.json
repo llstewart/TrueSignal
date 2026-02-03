@@ -12,7 +12,8 @@
       "Bash(npm uninstall:*)",
       "Bash(pkill:*)",
       "Bash(git mv:*)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(curl:*)"
     ]
   }
 }

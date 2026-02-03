@@ -7,17 +7,20 @@ import { GeneralListTable } from '@/components/GeneralListTable';
 import { UpgradedListTable } from '@/components/UpgradedListTable';
 import { LoadingState } from '@/components/LoadingState';
 import { PremiumGate } from '@/components/PremiumGate';
-import { SavedAnalysesPanel } from '@/components/SavedAnalysesPanel';
 import { AuthModal } from '@/components/auth/AuthModal';
-import { UserMenu } from '@/components/auth/UserMenu';
 import { BillingModal } from '@/components/BillingModal';
 import { SettingsModal } from '@/components/SettingsModal';
 import { BusinessLookupModal } from '@/components/BusinessLookupModal';
-import { MobileDisclaimer } from '@/components/MobileDisclaimer';
 import { useUser } from '@/hooks/useUser';
-// Note: SessionIndicator removed - replaced by UserMenu
 import { Business, EnrichedBusiness, TableBusiness, PendingBusiness, isPendingBusiness, isEnrichedBusiness } from '@/lib/types';
 import { exportGeneralListToCSV, exportEnrichedListToCSV } from '@/lib/export';
+// New app structure components
+import { MarketingPage } from '@/components/marketing/MarketingPage';
+import { AppShell } from '@/components/app/AppShell';
+import { SearchTab } from '@/components/app/SearchTab';
+import { LibraryTab } from '@/components/app/LibraryTab';
+import { AccountTab } from '@/components/app/AccountTab';
+import { createClient } from '@/lib/supabase/client';
 
 type TabType = 'general' | 'upgraded';
 
@@ -74,7 +77,6 @@ function HomeContent() {
   const [showBillingModal, setShowBillingModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showLookupModal, setShowLookupModal] = useState(false);
-  const [showMobileSearch, setShowMobileSearch] = useState(false);
 
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [tableBusinesses, setTableBusinesses] = useState<TableBusiness[]>([]);
@@ -88,11 +90,22 @@ function HomeContent() {
   const [isInitialized, setIsInitialized] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [sessionId, setSessionId] = useState<string>('');
-  const [showSavedPanel, setShowSavedPanel] = useState(false);
   const [savedAnalysesCount, setSavedAnalysesCount] = useState(0);
   const [isSessionConnected, setIsSessionConnected] = useState(false);
   const [isLoadingSaved, setIsLoadingSaved] = useState(false);
   const [wasAnalysisInterrupted, setWasAnalysisInterrupted] = useState(false);
+
+  // Library state
+  const [savedSearchesList, setSavedSearchesList] = useState<{
+    id: string;
+    niche: string;
+    location: string;
+    totalCount: number;
+    analyzedCount: number;
+    createdAt: Date;
+    lastAccessed: Date;
+  }[]>([]);
+  const [isLoadingLibrary, setIsLoadingLibrary] = useState(false);
 
   // User is considered premium only if they have a paid subscription (not free tier)
   const isPremium = !!user && !!subscription && subscription.tier !== 'free';
@@ -189,6 +202,47 @@ function HomeContent() {
       }
     } catch {
       setIsSessionConnected(false);
+    }
+  }, [user]);
+
+  // Fetch saved searches list for Library tab
+  const fetchSavedSearchesList = useCallback(async () => {
+    if (!user) {
+      setSavedSearchesList([]);
+      return;
+    }
+    setIsLoadingLibrary(true);
+    try {
+      const response = await fetch('/api/session');
+      if (response.ok) {
+        const data = await response.json();
+        const analyses = data.analyses || {};
+
+        // Transform analyses object to list format for LibraryTab
+        const searchesList = Object.entries(analyses).map(([key, value]: [string, any]) => {
+          const [niche, location] = key.split('|');
+          const businesses = value.businesses || [];
+          return {
+            id: key,
+            niche: niche || '',
+            location: location || '',
+            totalCount: businesses.length,
+            analyzedCount: businesses.filter((b: any) => isEnrichedBusiness(b)).length,
+            createdAt: new Date(value.createdAt || Date.now()),
+            lastAccessed: new Date(value.lastAccessed || Date.now()),
+          };
+        });
+
+        // Sort by lastAccessed (most recent first)
+        searchesList.sort((a, b) => b.lastAccessed.getTime() - a.lastAccessed.getTime());
+
+        setSavedSearchesList(searchesList);
+        setSavedAnalysesCount(searchesList.length);
+      }
+    } catch (error) {
+      console.error('[Library] Failed to fetch saved searches:', error);
+    } finally {
+      setIsLoadingLibrary(false);
     }
   }, [user]);
 
@@ -295,12 +349,13 @@ function HomeContent() {
     }
   }, [user, subscription, searchParams, loadSavedAnalyses, tableBusinesses.length, isAuthLoading]);
 
-  // Fetch saved count when user is logged in
+  // Fetch saved count and library list when user is logged in
   useEffect(() => {
     if (user) {
       fetchSavedCount();
+      fetchSavedSearchesList();
     }
-  }, [user, fetchSavedCount]);
+  }, [user, fetchSavedCount, fetchSavedSearchesList]);
 
   // Clear analyzed data for free tier users (they can't access Signals Pro)
   useEffect(() => {
@@ -608,10 +663,53 @@ function HomeContent() {
     handleSearch(niche, location);
   };
 
-  // Handle clearing history
-  const handleClearHistory = () => {
+  // Handle clicking a search from Library tab
+  const handleLibrarySearchClick = (search: { id: string; niche: string; location: string }) => {
+    handleLoadFromHistory(search.niche, search.location);
+  };
+
+  // Handle deleting a search from library
+  const handleDeleteSearch = async (searchId: string) => {
+    try {
+      const response = await fetch(`/api/session?key=${encodeURIComponent(searchId)}`, {
+        method: 'DELETE',
+      });
+      if (response.ok) {
+        // Refresh the library list
+        fetchSavedSearchesList();
+      }
+    } catch (error) {
+      console.error('[Library] Failed to delete search:', error);
+    }
+  };
+
+  // Handle clearing all history
+  const handleClearAllSearches = async () => {
+    try {
+      const response = await fetch('/api/session', {
+        method: 'DELETE',
+      });
+      if (response.ok) {
+        setSavedSearchesList([]);
+        setSavedAnalysesCount(0);
+        setTableBusinesses([]);
+      }
+    } catch (error) {
+      console.error('[Library] Failed to clear all searches:', error);
+    }
+  };
+
+  // Handle sign out
+  const handleSignOut = async () => {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    // Clear all local state
+    setBusinesses([]);
     setTableBusinesses([]);
+    setSearchParams(null);
+    setSavedSearchesList([]);
     setSavedAnalysesCount(0);
+    router.replace('/');
   };
 
   // Get current search key for highlighting in saved panel
@@ -877,669 +975,356 @@ function HomeContent() {
     });
   };
 
+  // Get recent searches for SearchTab (top 3)
+  const recentSearches = savedSearchesList.slice(0, 3);
+
   // ============================================
-  // RENDER: Hero Mode (No Results)
+  // RENDER: Auth Loading
   // ============================================
-  if (!hasResults && !isSearching) {
+  if (isAuthLoading) {
     return (
-      <div className="min-h-screen bg-[#0f0f10] flex flex-col">
-        {/* Top Navigation */}
-        <header className="absolute top-0 left-0 right-0 z-50">
-          <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-            <div className="text-xl font-bold text-white">
-              TrueSignal<span className="text-violet-500">.</span>
-            </div>
-            {isAuthLoading ? (
-              <div className="w-8 h-8 rounded-full bg-zinc-800 animate-pulse" />
-            ) : user ? (
-              <UserMenu
-                user={user}
-                credits={credits}
-                tier={tier}
-                onOpenBilling={() => setShowBillingModal(true)}
-                onOpenSettings={() => setShowSettingsModal(true)}
-              />
-            ) : (
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => {
-                    setAuthMode('signin');
-                    setShowAuthModal(true);
-                  }}
-                  className="px-4 py-2 text-sm font-medium text-zinc-300 hover:text-white transition-colors"
-                >
-                  Sign in
-                </button>
-                <button
-                  onClick={() => {
-                    setAuthMode('signup');
-                    setShowAuthModal(true);
-                  }}
-                  className="px-4 py-2 text-sm font-medium bg-violet-600 hover:bg-violet-500 text-white rounded-lg transition-colors flex items-center gap-2"
-                >
-                  <span>Get 5 Free Credits</span>
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                  </svg>
-                </button>
-              </div>
-            )}
-          </div>
-        </header>
-
-        {/* Centered Hero Content */}
-        <div className="flex-1 flex items-center justify-center px-4">
-          <div className="w-full max-w-3xl mx-auto text-center">
-            {/* Free Credits Badge - for non-logged-in users */}
-            {!user && (
-              <div className="inline-flex items-center gap-2 px-3 py-1.5 mb-6 bg-emerald-500/10 border border-emerald-500/20 rounded-full">
-                <svg className="w-4 h-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <span className="text-sm font-medium text-emerald-400">Sign up free and get 5 credits</span>
-              </div>
-            )}
-
-            {/* Logo - Hidden on mobile to prevent duplication with header */}
-            <h1 className="hidden md:block text-4xl md:text-5xl font-bold text-white mb-4 tracking-tight">
-              TrueSignal<span className="text-violet-500">.</span>
-            </h1>
-            <p className="text-zinc-400 text-base md:text-lg mb-8 max-w-xl mx-auto px-4">
-              Find businesses that actually need your services. Powered by real signals, not guesswork.
-            </p>
-
-            {/* Search Form - only shown to logged-in users */}
-            {user ? (
-              <div className="space-y-4">
-                <SearchForm
-                  onSearch={handleSearch}
-                  isLoading={isSearching}
-                  initialNiche={searchParams?.niche}
-                  initialLocation={searchParams?.location}
-                />
-                <button
-                  onClick={() => setShowLookupModal(true)}
-                  className="text-sm text-zinc-500 hover:text-violet-400 transition-colors flex items-center gap-2 mx-auto"
-                >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
-                  Or look up a specific business
-                </button>
-              </div>
-            ) : (
-              /* Sign-up CTA for non-logged-in users */
-              <div className="max-w-md mx-auto">
-                <button
-                  onClick={() => {
-                    setAuthMode('signup');
-                    setShowAuthModal(true);
-                  }}
-                  className="w-full px-6 py-4 text-lg font-semibold bg-violet-600 hover:bg-violet-500 text-white rounded-xl transition-all shadow-lg shadow-violet-500/20 hover:shadow-violet-500/30 flex items-center justify-center gap-3"
-                >
-                  <span>Get Started Free</span>
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                  </svg>
-                </button>
-                <p className="mt-4 text-sm text-zinc-500">
-                  Already have an account?{' '}
-                  <button
-                    onClick={() => {
-                      setAuthMode('signin');
-                      setShowAuthModal(true);
-                    }}
-                    className="text-violet-400 hover:text-violet-300 font-medium"
-                  >
-                    Sign in
-                  </button>
-                </p>
-              </div>
-            )}
-
-            {/* Credit Usage Info - for logged-in users */}
-            {user && (
-              <p className="mt-4 text-xs sm:text-sm text-zinc-500 px-4">
-                1 credit per search &bull; 1 credit per business analysis &bull; <span className="text-violet-400">{credits} credits remaining</span>
-              </p>
-            )}
-
-            {/* How it works */}
-            <div className="mt-12 md:mt-16 flex flex-wrap justify-center gap-4 md:gap-8 text-sm text-zinc-500 px-4">
-              <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded-full bg-violet-500/10 border border-violet-500/20 flex items-center justify-center text-violet-400 text-xs font-medium">1</div>
-                <span>Search niche</span>
-              </div>
-              <div className="hidden sm:block w-8 h-px bg-zinc-800" />
-              <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded-full bg-violet-500/10 border border-violet-500/20 flex items-center justify-center text-violet-400 text-xs font-medium">2</div>
-                <span>Scan market</span>
-              </div>
-              <div className="hidden sm:block w-8 h-px bg-zinc-800" />
-              <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded-full bg-violet-500/10 border border-violet-500/20 flex items-center justify-center text-violet-400 text-xs font-medium">3</div>
-                <span>Find signals</span>
-              </div>
-            </div>
-
-            {/* What's included - for non-logged-in users */}
-            {!user && (
-              <div className="mt-12 grid grid-cols-3 gap-6 max-w-lg mx-auto text-center">
-                <div>
-                  <div className="text-2xl font-bold text-white">5</div>
-                  <div className="text-xs text-zinc-500">Free Credits</div>
-                </div>
-                <div>
-                  <div className="text-2xl font-bold text-white">20+</div>
-                  <div className="text-xs text-zinc-500">Businesses/Search</div>
-                </div>
-                <div>
-                  <div className="text-2xl font-bold text-white">10+</div>
-                  <div className="text-xs text-zinc-500">Intel Points</div>
-                </div>
-              </div>
-            )}
-
-            {/* Saved Analyses Link - only for logged-in users */}
-            {user && savedAnalysesCount > 0 && (
-              <button
-                onClick={() => setShowSavedPanel(true)}
-                className="mt-8 inline-flex items-center gap-2 px-4 py-2 text-sm text-zinc-400 hover:text-white border border-zinc-700 hover:border-zinc-600 rounded-lg transition-colors"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                View {savedAnalysesCount} saved {savedAnalysesCount === 1 ? 'search' : 'searches'}
-              </button>
-            )}
-
-            {/* Error State */}
-            {error && (
-              <div className="mt-8 p-4 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm">
-                {error}
-              </div>
-            )}
-          </div>
+      <div className="min-h-screen bg-[#0f0f10] flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-violet-500/30 border-t-violet-500 rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-zinc-500 text-sm">Loading...</p>
         </div>
-
-        {/* Saved Analyses Panel (Hero Mode) */}
-        <SavedAnalysesPanel
-          isOpen={showSavedPanel}
-          onClose={() => setShowSavedPanel(false)}
-          sessionId={user?.id || ''}
-          currentSearchKey={currentSearchKey}
-          onLoadSearch={handleLoadFromHistory}
-          onClearHistory={handleClearHistory}
-          isLoggedIn={!!user}
-        />
-
-        {/* Auth Modal (Hero Mode) */}
-        <AuthModal
-          isOpen={showAuthModal}
-          onClose={() => setShowAuthModal(false)}
-          defaultMode={authMode}
-        />
-
-        {/* Billing Modal (Hero Mode) */}
-        <BillingModal
-          isOpen={showBillingModal}
-          onClose={() => {
-            setShowBillingModal(false);
-            refreshUser();
-          }}
-          currentTier={tier}
-          creditsRemaining={credits}
-        />
-
-        {/* Settings Modal (Hero Mode) */}
-        {user && (
-          <SettingsModal
-            isOpen={showSettingsModal}
-            onClose={() => setShowSettingsModal(false)}
-            user={user}
-          />
-        )}
-
-        {/* Business Lookup Modal (Hero Mode) */}
-        <BusinessLookupModal
-          isOpen={showLookupModal}
-          onClose={() => setShowLookupModal(false)}
-          isPremium={isPremium}
-          onUpgradeClick={() => {
-            setShowLookupModal(false);
-            setShowBillingModal(true);
-          }}
-          onSaved={fetchSavedCount}
-        />
-
-        {/* Toast Notification */}
-        {toastMessage && (
-          <div className="fixed bottom-4 right-4 z-50 animate-in slide-in-from-bottom-4 fade-in duration-300">
-            <div className={`rounded-xl px-4 py-3 shadow-lg shadow-black/30 flex items-center gap-3 ${
-              toastMessage.includes('Rate limited') || toastMessage.includes('wait')
-                ? 'bg-red-500/10'
-                : 'bg-zinc-900'
-            }`}>
-              <div className={`w-2 h-2 rounded-full ${
-                toastMessage.includes('successful') ? 'bg-emerald-500'
-                : toastMessage.includes('Rate limited') || toastMessage.includes('wait') ? 'bg-red-500'
-                : 'bg-amber-500'
-              }`} />
-              <span className={`text-sm ${
-                toastMessage.includes('Rate limited') || toastMessage.includes('wait')
-                  ? 'text-red-300'
-                  : 'text-zinc-200'
-              }`}>{toastMessage}</span>
-              {!rateLimitCountdown && (
-                <button
-                  onClick={() => setToastMessage(null)}
-                  className="text-zinc-400 hover:text-white ml-2"
-                >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              )}
-            </div>
-          </div>
-        )}
       </div>
     );
   }
 
   // ============================================
-  // RENDER: Results Mode (Compact Header + Data)
+  // RENDER: Marketing Page (Not Logged In)
   // ============================================
-  return (
-    <div className="min-h-screen bg-[#0f0f10] flex flex-col">
-      {/* Compact Header */}
-      <header className="sticky top-0 z-50 bg-[#0f0f10]/80 backdrop-blur-xl shadow-sm shadow-black/10">
-        <div className="max-w-[1600px] mx-auto px-4 py-3">
-          <div className="flex items-center gap-6">
-            {/* Logo - clickable to reset */}
-            <button
-              onClick={() => {
-                setBusinesses([]);
-                setTableBusinesses([]);
-                setSearchParams(null);
-                setError(null);
-                setWasAnalysisInterrupted(false);
-                router.replace('/');
-              }}
-              className="text-xl font-bold text-white hover:text-violet-400 transition-colors flex-shrink-0"
-              title="Back to home"
-            >
-              TrueSignal<span className="text-violet-500">.</span>
-            </button>
+  if (!user) {
+    return (
+      <>
+        <MarketingPage
+          onSignIn={() => {
+            setAuthMode('signin');
+            setShowAuthModal(true);
+          }}
+          onSignUp={() => {
+            setAuthMode('signup');
+            setShowAuthModal(true);
+          }}
+        />
+        <AuthModal
+          isOpen={showAuthModal}
+          onClose={() => setShowAuthModal(false)}
+          defaultMode={authMode}
+        />
+      </>
+    );
+  }
 
-            {/* Business Lookup Button */}
-            <button
-              onClick={() => setShowLookupModal(true)}
-              className="hidden md:flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-zinc-400 hover:text-white border border-zinc-700 hover:border-zinc-600 rounded-lg transition-colors"
-              title="Look up a specific business"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-              <span>Lookup</span>
-            </button>
+  // ============================================
+  // RENDER: App (Logged In)
+  // ============================================
 
+  // Build the search form component
+  const searchFormComponent = (
+    <SearchForm
+      onSearch={handleSearch}
+      isLoading={isSearching}
+      initialNiche={searchParams?.niche}
+      initialLocation={searchParams?.location}
+      compact={hasResults}
+    />
+  );
 
-            {/* Mobile Search Toggle */}
-            <button
-              onClick={() => setShowMobileSearch(!showMobileSearch)}
-              className="md:hidden p-3 text-zinc-400 hover:text-white active:scale-95 transition-all"
-              title={showMobileSearch ? "Close search" : "Open search"}
-            >
-              {showMobileSearch ? (
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              ) : (
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-              )}
-            </button>
+  // Build the results component (when we have results)
+  const resultsComponent = hasResults ? (
+    <div className="space-y-4 p-4">
+      {/* Error State */}
+      {error && (
+        <div className="p-4 bg-red-500/10 rounded-lg text-red-400 text-sm">
+          {error}
+        </div>
+      )}
 
-            {/* Compact Search Form (Desktop) */}
-            <div className="hidden md:block flex-1 max-w-xl">
-              <SearchForm
-                onSearch={handleSearch}
-                isLoading={isSearching}
-                initialNiche={searchParams?.niche}
-                initialLocation={searchParams?.location}
-                compact
-              />
-            </div>
-
-            {/* Quick Stats */}
-            {searchParams && (
-              <div className="hidden lg:flex items-center gap-4 text-sm">
-                <div className="text-zinc-500">
-                  <span className="text-zinc-300 font-medium">{businesses.length}</span> results
-                </div>
-                {isCached && (
-                  <span className="px-2 py-0.5 text-xs font-medium rounded bg-amber-500/10 text-amber-500 border border-amber-500/20">
-                    Cached
-                  </span>
-                )}
-              </div>
-            )}
-
-            {/* Auth Section */}
-            {isAuthLoading ? (
-              <div className="w-8 h-8 rounded-full bg-zinc-800 animate-pulse" />
-            ) : user ? (
-              <div className="flex items-center gap-2">
-                {/* History Button */}
-                <button
-                  onClick={() => setShowSavedPanel(true)}
-                  className="p-2 hover:bg-zinc-800 rounded-lg transition-colors"
-                  title="Saved analyses"
-                >
-                  <svg className="w-5 h-5 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </button>
-                {/* User Menu */}
-                <UserMenu
-                  user={user}
-                  credits={credits}
-                  tier={tier}
-                  onOpenBilling={() => setShowBillingModal(true)}
-                  onOpenSettings={() => setShowSettingsModal(true)}
-                />
-              </div>
+      {/* Toolbar */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        {/* Tabs */}
+        <div className="flex items-center gap-1 p-1 bg-zinc-900/60 rounded-xl shadow-lg shadow-black/20 overflow-x-auto">
+          <button
+            onClick={() => setActiveTab('general')}
+            className={`px-3 sm:px-4 py-2 text-sm font-medium rounded-md transition-all whitespace-nowrap ${activeTab === 'general'
+              ? 'bg-zinc-800 text-white shadow-sm'
+              : 'text-zinc-400 hover:text-white'
+              }`}
+          >
+            All Results
+            <span className="ml-1.5 sm:ml-2 text-zinc-500">({businesses.length})</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('upgraded')}
+            className={`px-3 sm:px-4 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-1.5 sm:gap-2 whitespace-nowrap ${activeTab === 'upgraded'
+              ? 'bg-zinc-800 text-white shadow-sm'
+              : 'text-zinc-400 hover:text-white'
+              }`}
+          >
+            <span>Lead Intel</span>
+            {isPremium ? (
+              <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-emerald-500/20 text-emerald-400">
+                PRO
+              </span>
             ) : (
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => {
-                    setAuthMode('signin');
-                    setShowAuthModal(true);
-                  }}
-                  className="px-4 py-2 text-sm font-medium text-zinc-300 hover:text-white transition-colors"
-                >
-                  Sign in
-                </button>
-                <button
-                  onClick={() => {
-                    setAuthMode('signup');
-                    setShowAuthModal(true);
-                  }}
-                  className="px-4 py-2 text-sm font-medium bg-violet-600 hover:bg-violet-500 text-white rounded-lg transition-colors flex items-center gap-2"
-                >
-                  <span>Get 5 Free Credits</span>
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                  </svg>
-                </button>
-              </div>
+              <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-violet-500/20 text-violet-400">
+                UPGRADE
+              </span>
             )}
-          </div>
+            {tableBusinesses.length > 0 && (
+              <span className="text-zinc-500">({tableBusinesses.length})</span>
+            )}
+          </button>
         </div>
 
-        {/* Mobile Search Overlay */}
-        {showMobileSearch && (
-          <div className="absolute top-full left-0 right-0 bg-[#0f0f10] p-4 shadow-lg shadow-black/20 md:hidden z-40 animate-in slide-in-from-top-2">
-            <SearchForm
-              onSearch={async (n, l) => {
-                setShowMobileSearch(false);
-                await handleSearch(n, l);
-              }}
-              isLoading={isSearching}
-              initialNiche={searchParams?.niche}
-              initialLocation={searchParams?.location}
+        {/* Actions */}
+        <div className="flex items-center gap-2">
+          {/* Export */}
+          <button
+            onClick={() => {
+              if (activeTab === 'upgraded' && tableBusinesses.length > 0) {
+                const hasEnrichedData = tableBusinesses.some(b => !isPendingBusiness(b));
+                if (hasEnrichedData) {
+                  exportEnrichedListToCSV(tableBusinesses, searchParams?.niche, searchParams?.location);
+                }
+              } else {
+                exportGeneralListToCSV(businesses, searchParams?.niche, searchParams?.location);
+              }
+            }}
+            disabled={activeTab === 'upgraded' && tableBusinesses.length > 0 && tableBusinesses.every(b => isPendingBusiness(b))}
+            className="px-3 py-2 text-sm font-medium rounded-lg bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-white transition-all flex items-center gap-2 disabled:opacity-50"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            <span className="hidden sm:inline">Export</span>
+          </button>
+
+          {/* Analyze Button */}
+          {activeTab === 'general' && (
+            isPremium ? (
+              <button
+                onClick={handleAnalyze}
+                disabled={isAnalyzing}
+                className="px-3 sm:px-4 py-2 text-sm font-medium rounded-lg bg-violet-600 text-white hover:bg-violet-500 transition-all flex items-center gap-2 disabled:opacity-50"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                </svg>
+                <span className="hidden sm:inline">
+                  {selectedBusinesses.size > 0
+                    ? `Get Intel on ${selectedBusinesses.size}`
+                    : 'Get Lead Intel'}
+                </span>
+                <span className="sm:hidden">Get Intel</span>
+              </button>
+            ) : (
+              <button
+                onClick={() => setShowBillingModal(true)}
+                className="px-3 sm:px-4 py-2 text-sm font-medium rounded-lg bg-gradient-to-r from-violet-600 to-purple-600 text-white hover:from-violet-500 hover:to-purple-500 transition-all flex items-center gap-2"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+                <span className="hidden sm:inline">Unlock Lead Intel</span>
+                <span className="sm:hidden">Unlock</span>
+              </button>
+            )
+          )}
+        </div>
+      </div>
+
+      {/* Interrupted Analysis Banner */}
+      {wasAnalysisInterrupted && !isAnalyzing && tableBusinesses.length > 0 && (
+        <div className="p-3 rounded-lg bg-amber-500/10 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <svg className="w-5 h-5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <span className="text-sm text-amber-400">
+              Analysis was interrupted. {tableBusinesses.filter(b => !isPendingBusiness(b)).length} of {businesses.length} businesses analyzed.
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setWasAnalysisInterrupted(false)}
+              className="text-xs text-zinc-400 hover:text-white px-2 py-1"
+            >
+              Dismiss
+            </button>
+            <button
+              onClick={handleAnalyze}
+              className="text-xs font-medium text-amber-400 hover:text-amber-300 px-3 py-1 rounded hover:bg-amber-500/10"
+            >
+              Continue Analysis
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Progress Bar */}
+      {isAnalyzing && analyzeProgress && (
+        <div className={`p-3 rounded-lg ${analyzeProgress.firstPageComplete
+          ? 'bg-emerald-500/5'
+          : 'bg-violet-500/5'
+          }`}>
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1">
+                {[1, 2, 3].map((phase) => (
+                  <div
+                    key={phase}
+                    className={`w-2 h-2 rounded-full transition-all ${phase < (analyzeProgress.phase || 0)
+                      ? 'bg-emerald-500'
+                      : phase === analyzeProgress.phase
+                        ? 'bg-violet-500 animate-pulse'
+                        : 'bg-zinc-700'
+                      }`}
+                  />
+                ))}
+              </div>
+              <span className={`text-sm font-medium ${analyzeProgress.firstPageComplete ? 'text-emerald-400' : 'text-violet-400'
+                }`}>
+                {analyzeProgress.message}
+              </span>
+            </div>
+            <span className={`text-sm ${analyzeProgress.firstPageComplete ? 'text-emerald-400' : 'text-violet-400'
+              }`}>
+              {analyzeProgress.completed}/{analyzeProgress.total}
+            </span>
+          </div>
+          <div className={`h-1 rounded-full ${analyzeProgress.firstPageComplete ? 'bg-emerald-500/20' : 'bg-violet-500/20'
+            }`}>
+            <div
+              className={`h-full rounded-full transition-all duration-300 ${analyzeProgress.firstPageComplete ? 'bg-emerald-500' : 'bg-violet-500'
+                }`}
+              style={{ width: `${(analyzeProgress.completed / analyzeProgress.total) * 100}%` }}
             />
           </div>
-        )}
-      </header>
+        </div>
+      )}
 
-      {/* Main Content */}
-      <main className="flex-1 max-w-[1600px] w-full mx-auto px-4 py-4">
-        {/* Loading State */}
-        {isSearching && (
-          <div className="py-16">
-            <LoadingState message="Searching businesses..." />
-          </div>
+      {/* Data Table */}
+      <div className={`bg-zinc-900/60 rounded-xl shadow-lg shadow-black/20 overflow-hidden ${activeTab === 'upgraded' && isPremium
+        ? 'ring-1 ring-violet-500/20'
+        : ''
+        }`}>
+        {activeTab === 'general' ? (
+          <GeneralListTable
+            businesses={businesses}
+            selectedBusinesses={selectedBusinesses}
+            onSelectionChange={setSelectedBusinesses}
+          />
+        ) : !isPremium ? (
+          <PremiumGate
+            onUpgradeClick={handleUpgradeClick}
+            niche={searchParams?.niche}
+            location={searchParams?.location}
+          />
+        ) : (
+          <UpgradedListTable
+            businesses={tableBusinesses}
+            niche={searchParams?.niche}
+            location={searchParams?.location}
+            isLoadingMore={isAnalyzing}
+            expectedTotal={analyzeProgress?.total || businesses.length}
+          />
         )}
+      </div>
 
-        {/* Error State */}
-        {error && (
-          <div className="mb-4 p-4 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm">
+      {/* Footer Summary */}
+      <div className="text-center text-sm text-zinc-500 pb-4">
+        {activeTab === 'general' ? (
+          <span>
+            Showing {businesses.length} businesses for &quot;{searchParams?.niche}&quot; in {searchParams?.location}
+          </span>
+        ) : isPremium && tableBusinesses.length > 0 ? (
+          <span>
+            {tableBusinesses.filter(b => !isPendingBusiness(b)).length} of {tableBusinesses.length} analyzed
+          </span>
+        ) : null}
+      </div>
+    </div>
+  ) : null;
+
+  // Search Tab content
+  const searchTabContent = (
+    <>
+      {isSearching ? (
+        <div className="py-16">
+          <LoadingState message="Searching businesses..." />
+        </div>
+      ) : (
+        <SearchTab
+          searchForm={searchFormComponent}
+          results={resultsComponent}
+          recentSearches={recentSearches}
+          onRecentSearchClick={(search) => handleLoadFromHistory(search.niche, search.location)}
+          onLookupClick={() => setShowLookupModal(true)}
+          hasResults={hasResults}
+          credits={credits}
+        />
+      )}
+      {/* Error in hero state */}
+      {!hasResults && error && (
+        <div className="max-w-2xl mx-auto px-4">
+          <div className="p-4 bg-red-500/10 rounded-lg text-red-400 text-sm">
             {error}
           </div>
-        )}
+        </div>
+      )}
+    </>
+  );
 
-        {/* Results */}
-        {!isSearching && hasResults && (
-          <div className="space-y-4">
-            {/* Toolbar - Responsive: stacks on mobile */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              {/* Tabs */}
-              <div className="flex items-center gap-1 p-1 bg-zinc-900/60 rounded-xl shadow-lg shadow-black/20 overflow-x-auto">
-                <button
-                  onClick={() => setActiveTab('general')}
-                  className={`px-3 sm:px-4 py-2 text-sm font-medium rounded-md transition-all whitespace-nowrap ${activeTab === 'general'
-                    ? 'bg-zinc-800 text-white shadow-sm'
-                    : 'text-zinc-400 hover:text-white'
-                    }`}
-                >
-                  All Results
-                  <span className="ml-1.5 sm:ml-2 text-zinc-500">({businesses.length})</span>
-                </button>
-                <button
-                  onClick={() => setActiveTab('upgraded')}
-                  className={`px-3 sm:px-4 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-1.5 sm:gap-2 whitespace-nowrap ${activeTab === 'upgraded'
-                    ? 'bg-zinc-800 text-white shadow-sm'
-                    : 'text-zinc-400 hover:text-white'
-                    }`}
-                >
-                  <span>Lead Intel</span>
-                  {isPremium ? (
-                    <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                      PRO
-                    </span>
-                  ) : (
-                    <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-violet-500/20 text-violet-400 border border-violet-500/30">
-                      UPGRADE
-                    </span>
-                  )}
-                  {tableBusinesses.length > 0 && (
-                    <span className="text-zinc-500">({tableBusinesses.length})</span>
-                  )}
-                </button>
-              </div>
+  // Library Tab content
+  const libraryTabContent = (
+    <LibraryTab
+      searches={savedSearchesList}
+      isLoading={isLoadingLibrary}
+      onSearchClick={handleLibrarySearchClick}
+      onDeleteSearch={handleDeleteSearch}
+      onClearAll={handleClearAllSearches}
+    />
+  );
 
-              {/* Actions */}
-              <div className="flex items-center gap-2">
-                {/* Export */}
-                <button
-                  onClick={() => {
-                    if (activeTab === 'upgraded' && tableBusinesses.length > 0) {
-                      const hasEnrichedData = tableBusinesses.some(b => !isPendingBusiness(b));
-                      if (hasEnrichedData) {
-                        exportEnrichedListToCSV(tableBusinesses, searchParams?.niche, searchParams?.location);
-                      }
-                    } else {
-                      exportGeneralListToCSV(businesses, searchParams?.niche, searchParams?.location);
-                    }
-                  }}
-                  disabled={activeTab === 'upgraded' && tableBusinesses.length > 0 && tableBusinesses.every(b => isPendingBusiness(b))}
-                  className="px-3 py-2 text-sm font-medium rounded-lg bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-white transition-all flex items-center gap-2 disabled:opacity-50"
-                >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                  <span className="hidden sm:inline">Export</span>
-                </button>
+  // Account Tab content
+  const accountTabContent = (
+    <AccountTab
+      user={user}
+      credits={credits}
+      tier={tier}
+      onOpenBilling={() => setShowBillingModal(true)}
+      onOpenSettings={() => setShowSettingsModal(true)}
+      onSignOut={handleSignOut}
+    />
+  );
 
-                {/* Analyze Button */}
-                {activeTab === 'general' && (
-                  isPremium ? (
-                    <button
-                      onClick={handleAnalyze}
-                      disabled={isAnalyzing}
-                      className="px-3 sm:px-4 py-2 text-sm font-medium rounded-lg bg-violet-600 text-white hover:bg-violet-500 transition-all flex items-center gap-2 disabled:opacity-50"
-                    >
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                      </svg>
-                      <span className="hidden sm:inline">
-                        {selectedBusinesses.size > 0
-                          ? `Get Intel on ${selectedBusinesses.size}`
-                          : 'Get Lead Intel'}
-                      </span>
-                      <span className="sm:hidden">Get Intel</span>
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => setShowBillingModal(true)}
-                      className="px-3 sm:px-4 py-2 text-sm font-medium rounded-lg bg-gradient-to-r from-violet-600 to-purple-600 text-white hover:from-violet-500 hover:to-purple-500 transition-all flex items-center gap-2"
-                    >
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                      </svg>
-                      <span className="hidden sm:inline">Unlock Lead Intel</span>
-                      <span className="sm:hidden">Unlock</span>
-                    </button>
-                  )
-                )}
+  // Get user display name for sidebar
+  const userName = user.user_metadata?.full_name || user.email?.split('@')[0] || 'User';
 
-                {/* Dev info - shows current auth status */}
-                {process.env.NODE_ENV === 'development' && (
-                  <span className="hidden sm:inline px-2 py-1 text-xs border border-zinc-700 rounded text-zinc-500">
-                    {user ? `${credits} credits` : 'Not signed in'}
-                  </span>
-                )}
-              </div>
-            </div>
-
-            {/* Interrupted Analysis Banner */}
-            {wasAnalysisInterrupted && !isAnalyzing && tableBusinesses.length > 0 && (
-              <div className="p-3 rounded-lg border border-amber-500/30 bg-amber-500/10 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <svg className="w-5 h-5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                  </svg>
-                  <span className="text-sm text-amber-400">
-                    Analysis was interrupted. {tableBusinesses.filter(b => !isPendingBusiness(b)).length} of {businesses.length} businesses analyzed.
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setWasAnalysisInterrupted(false)}
-                    className="text-xs text-zinc-400 hover:text-white px-2 py-1"
-                  >
-                    Dismiss
-                  </button>
-                  <button
-                    onClick={handleAnalyze}
-                    className="text-xs font-medium text-amber-400 hover:text-amber-300 px-3 py-1 border border-amber-500/30 rounded hover:bg-amber-500/10"
-                  >
-                    Continue Analysis
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Progress Bar */}
-            {isAnalyzing && analyzeProgress && (
-              <div className={`p-3 rounded-lg border ${analyzeProgress.firstPageComplete
-                ? 'bg-emerald-500/5 border-emerald-500/20'
-                : 'bg-violet-500/5 border-violet-500/20'
-                }`}>
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-3">
-                    {/* Phase indicators */}
-                    <div className="flex items-center gap-1">
-                      {[1, 2, 3].map((phase) => (
-                        <div
-                          key={phase}
-                          className={`w-2 h-2 rounded-full transition-all ${phase < (analyzeProgress.phase || 0)
-                            ? 'bg-emerald-500'
-                            : phase === analyzeProgress.phase
-                              ? 'bg-violet-500 animate-pulse'
-                              : 'bg-zinc-700'
-                            }`}
-                        />
-                      ))}
-                    </div>
-                    <span className={`text-sm font-medium ${analyzeProgress.firstPageComplete ? 'text-emerald-400' : 'text-violet-400'
-                      }`}>
-                      {analyzeProgress.message}
-                    </span>
-                  </div>
-                  <span className={`text-sm ${analyzeProgress.firstPageComplete ? 'text-emerald-400' : 'text-violet-400'
-                    }`}>
-                    {analyzeProgress.completed}/{analyzeProgress.total}
-                  </span>
-                </div>
-                <div className={`h-1 rounded-full ${analyzeProgress.firstPageComplete ? 'bg-emerald-500/20' : 'bg-violet-500/20'
-                  }`}>
-                  <div
-                    className={`h-full rounded-full transition-all duration-300 ${analyzeProgress.firstPageComplete ? 'bg-emerald-500' : 'bg-violet-500'
-                      }`}
-                    style={{ width: `${(analyzeProgress.completed / analyzeProgress.total) * 100}%` }}
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* Data Table */}
-            <div className={`bg-zinc-900/60 rounded-xl shadow-lg shadow-black/20 overflow-hidden ${activeTab === 'upgraded' && isPremium
-              ? 'ring-1 ring-violet-500/20'
-              : ''
-              }`}>
-              {activeTab === 'general' ? (
-                <GeneralListTable
-                  businesses={businesses}
-                  selectedBusinesses={selectedBusinesses}
-                  onSelectionChange={setSelectedBusinesses}
-                />
-              ) : !isPremium ? (
-                <PremiumGate
-                  onUpgradeClick={handleUpgradeClick}
-                  niche={searchParams?.niche}
-                  location={searchParams?.location}
-                />
-              ) : (
-                <UpgradedListTable
-                  businesses={tableBusinesses}
-                  niche={searchParams?.niche}
-                  location={searchParams?.location}
-                  isLoadingMore={isAnalyzing}
-                  expectedTotal={analyzeProgress?.total || businesses.length}
-                />
-              )}
-            </div>
-
-            {/* Footer Summary */}
-            <div className="text-center text-sm text-zinc-500 pb-4">
-              {activeTab === 'general' ? (
-                <span>
-                  Showing {businesses.length} businesses for &quot;{searchParams?.niche}&quot; in {searchParams?.location}
-                </span>
-              ) : isPremium && tableBusinesses.length > 0 ? (
-                <span>
-                  {tableBusinesses.filter(b => !isPendingBusiness(b)).length} of {tableBusinesses.length} analyzed
-                </span>
-              ) : null}
-            </div>
-          </div>
-        )}
-      </main>
-
-      {/* Saved Analyses Panel */}
-      <SavedAnalysesPanel
-        isOpen={showSavedPanel}
-        onClose={() => setShowSavedPanel(false)}
-        sessionId={user?.id || ''}
-        currentSearchKey={currentSearchKey}
-        onLoadSearch={handleLoadFromHistory}
-        onClearHistory={handleClearHistory}
-        isLoggedIn={!!user}
-      />
+  return (
+    <>
+      <AppShell
+        credits={credits}
+        tier={tier}
+        userName={userName}
+        recentSearches={recentSearches}
+        libraryCount={savedAnalysesCount}
+        onSearchSelect={(searchId) => {
+          const search = savedSearchesList.find(s => s.id === searchId);
+          if (search) {
+            handleLoadFromHistory(search.niche, search.location);
+          }
+        }}
+      >
+        {{
+          search: searchTabContent,
+          library: libraryTabContent,
+          account: accountTabContent,
+        }}
+      </AppShell>
 
       {/* Auth Modal */}
       <AuthModal
@@ -1560,13 +1345,11 @@ function HomeContent() {
       />
 
       {/* Settings Modal */}
-      {user && (
-        <SettingsModal
-          isOpen={showSettingsModal}
-          onClose={() => setShowSettingsModal(false)}
-          user={user}
-        />
-      )}
+      <SettingsModal
+        isOpen={showSettingsModal}
+        onClose={() => setShowSettingsModal(false)}
+        user={user}
+      />
 
       {/* Business Lookup Modal */}
       <BusinessLookupModal
@@ -1582,7 +1365,7 @@ function HomeContent() {
 
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed bottom-4 right-4 z-50 animate-in slide-in-from-bottom-4 fade-in duration-300">
+        <div className="fixed bottom-20 md:bottom-4 right-4 z-50 animate-in slide-in-from-bottom-4 fade-in duration-300">
           <div className={`rounded-xl px-4 py-3 shadow-lg shadow-black/30 flex items-center gap-3 ${
             toastMessage.includes('Rate limited') || toastMessage.includes('wait')
               ? 'bg-red-500/10'
@@ -1611,9 +1394,6 @@ function HomeContent() {
           </div>
         </div>
       )}
-
-      {/* Mobile Disclaimer */}
-      <MobileDisclaimer />
-    </div>
+    </>
   );
 }

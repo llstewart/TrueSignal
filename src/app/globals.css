@@ -152,3 +152,19 @@ th {
 .header-shadow {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
+
+/* Safe area padding for iOS devices with home indicator */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 8px);
+}
+
+.pt-safe {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+/* Bottom navigation specific safe area */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .nav-bottom-safe {
+    padding-bottom: calc(8px + env(safe-area-inset-bottom));
+  }
+}
