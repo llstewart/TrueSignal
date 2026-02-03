@@ -380,14 +380,6 @@ function HomeContent() {
     setError(null);
     setSearchParams({ niche, location });
 
-    // Deduct 1 credit for the search
-    const creditDeducted = await deductCredit(1);
-    if (!creditDeducted) {
-      setError('Failed to process credit. Please try again.');
-      setIsSearching(false);
-      return;
-    }
-
     try {
       const response = await fetch('/api/search', {
         method: 'POST',
@@ -403,11 +395,20 @@ function HomeContent() {
       setBusinesses(data.businesses);
       setIsCached(data.cached || false);
 
-      // Note: We don't auto-save raw search results to session API
-      // Only enriched/analyzed businesses get saved (via saveAnalysesToSession)
+      // Deduct credit only on SUCCESS and only if not cached (fresh search)
+      if (!data.cached) {
+        const creditDeducted = await deductCredit(1);
+        if (!creditDeducted) {
+          console.error('Failed to deduct credit after successful search');
+          // Don't show error to user - they got their results, we'll handle billing separately
+        }
+        // Refresh to update credit display
+        refreshUser();
+      }
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') return;
       setError(err instanceof Error ? err.message : 'An unexpected error occurred');
+      // No credits deducted on failure - better UX
     } finally {
       setIsSearching(false);
     }
@@ -452,14 +453,6 @@ function HomeContent() {
     setSearchParams({ niche, location });
     setIsCached(false);
 
-    // Deduct 1 credit for the search
-    const creditDeducted = await deductCredit(1);
-    if (!creditDeducted) {
-      setError('Failed to process credit. Please try again.');
-      setIsSearching(false);
-      return;
-    }
-
     try {
       const response = await fetch('/api/search', {
         method: 'POST',
@@ -476,11 +469,18 @@ function HomeContent() {
       setIsCached(data.cached || false);
       setActiveTab('general');
 
-      // Note: We don't auto-save raw search results to session API
-      // Only enriched/analyzed businesses get saved (via saveAnalysesToSession)
+      // Deduct credit only on SUCCESS and only if not cached (fresh search)
+      if (!data.cached) {
+        const creditDeducted = await deductCredit(1);
+        if (!creditDeducted) {
+          console.error('Failed to deduct credit after successful search');
+        }
+        refreshUser();
+      }
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') return;
       setError(err instanceof Error ? err.message : 'An unexpected error occurred');
+      // No credits deducted on failure
     } finally {
       setIsSearching(false);
     }
@@ -569,13 +569,8 @@ function HomeContent() {
       }
     }
 
-    // Deduct credits (server-side will also validate)
-    const success = await deductCredit(creditsNeeded);
-    if (!success) {
-      setError(`Insufficient credits. You need ${creditsNeeded} credits but only have ${currentCredits} available.`);
-      setShowBillingModal(true);
-      return;
-    }
+    // Track successful analyses - credits deducted only on success
+    let successfulAnalyses = 0;
 
     if (analyzeControllerRef.current) analyzeControllerRef.current.abort();
     const controller = new AbortController();
@@ -708,6 +703,8 @@ function HomeContent() {
                   }
                   return [...prev, enrichedBusiness];
                 });
+                // Track successful analysis for deduct-on-success
+                successfulAnalyses++;
                 setAnalyzeProgress(prev => ({
                   completed: data.progress.completed,
                   total: data.progress.total,
@@ -734,6 +731,15 @@ function HomeContent() {
     } finally {
       setIsAnalyzing(false);
       setAnalyzeProgress(null);
+
+      // Deduct credits only for successful analyses (better UX - don't charge for failures)
+      if (successfulAnalyses > 0) {
+        const creditDeducted = await deductCredit(successfulAnalyses);
+        if (!creditDeducted) {
+          console.error(`Failed to deduct ${successfulAnalyses} credits after successful analysis`);
+        }
+        refreshUser(); // Update credit display
+      }
 
       // Save only actually enriched businesses to session (not pending, not raw)
       setTableBusinesses(current => {

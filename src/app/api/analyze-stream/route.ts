@@ -143,7 +143,7 @@ export async function POST(request: NextRequest) {
   // Check subscription tier - only paid users can analyze
   const { data: subscription } = await supabase
     .from('subscriptions')
-    .select('tier, credits_remaining')
+    .select('tier, credits_remaining, credits_purchased')
     .eq('user_id', user.id)
     .single();
 
@@ -166,13 +166,14 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  // Validate credits before analysis
+  // Validate credits before analysis (include both remaining and purchased)
   const requestedCount = body.businesses.length;
-  if (subscription.credits_remaining !== null && subscription.credits_remaining < requestedCount) {
+  const totalCredits = (subscription.credits_remaining || 0) + (subscription.credits_purchased || 0);
+  if (totalCredits < requestedCount) {
     return new Response(JSON.stringify({
-      error: `Insufficient credits. You have ${subscription.credits_remaining} credits but requested ${requestedCount} analyses.`,
+      error: `Insufficient credits. You have ${totalCredits} credits but requested ${requestedCount} analyses.`,
       insufficientCredits: true,
-      creditsRemaining: subscription.credits_remaining,
+      creditsRemaining: totalCredits,
       creditsRequired: requestedCount
     }), {
       status: 402,
