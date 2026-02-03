@@ -64,9 +64,9 @@ export function SettingsModal({ isOpen, onClose, user }: SettingsModalProps) {
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
 
-      <div className="relative bg-zinc-900 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto m-4 border border-zinc-800">
+      <div className="relative bg-zinc-900 rounded-2xl shadow-2xl shadow-black/40 w-full max-w-2xl max-h-[90vh] overflow-y-auto m-4">
         {/* Header */}
-        <div className="sticky top-0 bg-zinc-900 border-b border-zinc-800 p-6 flex items-center justify-between z-10">
+        <div className="sticky top-0 bg-zinc-900 p-6 flex items-center justify-between z-10">
           <h2 className="text-xl font-bold text-white">Settings</h2>
           <button
             onClick={onClose}
@@ -78,7 +78,7 @@ export function SettingsModal({ isOpen, onClose, user }: SettingsModalProps) {
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-zinc-800">
+        <div className="flex bg-zinc-800/30">
           <button
             onClick={() => setActiveTab('profile')}
             className={`flex items-center gap-2 px-6 py-3 text-sm font-medium transition-colors ${
@@ -200,7 +200,7 @@ export function SettingsModal({ isOpen, onClose, user }: SettingsModalProps) {
                       value={deleteConfirmation}
                       onChange={(e) => setDeleteConfirmation(e.target.value)}
                       placeholder="Type DELETE"
-                      className="w-full px-4 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:border-red-500"
+                      className="w-full px-4 py-2 bg-zinc-800/50 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-red-500"
                     />
                     {error && (
                       <p className="text-sm text-red-400">{error}</p>

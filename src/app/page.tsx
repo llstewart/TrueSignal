@@ -51,7 +51,7 @@ interface SessionState {
 export default function Home() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen bg-[#0a0a0b] flex items-center justify-center">
+      <div className="min-h-screen bg-[#0f0f10] flex items-center justify-center">
         <div className="text-center">
           <div className="w-8 h-8 border-2 border-violet-500/30 border-t-violet-500 rounded-full animate-spin mx-auto mb-4" />
           <p className="text-zinc-500 text-sm">Loading...</p>
@@ -882,7 +882,7 @@ function HomeContent() {
   // ============================================
   if (!hasResults && !isSearching) {
     return (
-      <div className="min-h-screen bg-[#0a0a0b] flex flex-col">
+      <div className="min-h-screen bg-[#0f0f10] flex flex-col">
         {/* Top Navigation */}
         <header className="absolute top-0 left-0 right-0 z-50">
           <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
@@ -1115,10 +1115,10 @@ function HomeContent() {
         {/* Toast Notification */}
         {toastMessage && (
           <div className="fixed bottom-4 right-4 z-50 animate-in slide-in-from-bottom-4 fade-in duration-300">
-            <div className={`rounded-lg px-4 py-3 shadow-lg flex items-center gap-3 ${
+            <div className={`rounded-xl px-4 py-3 shadow-lg shadow-black/30 flex items-center gap-3 ${
               toastMessage.includes('Rate limited') || toastMessage.includes('wait')
-                ? 'bg-red-500/10 border border-red-500/30'
-                : 'bg-zinc-800 border border-zinc-700'
+                ? 'bg-red-500/10'
+                : 'bg-zinc-900'
             }`}>
               <div className={`w-2 h-2 rounded-full ${
                 toastMessage.includes('successful') ? 'bg-emerald-500'
@@ -1151,9 +1151,9 @@ function HomeContent() {
   // RENDER: Results Mode (Compact Header + Data)
   // ============================================
   return (
-    <div className="min-h-screen bg-[#0a0a0b] flex flex-col">
+    <div className="min-h-screen bg-[#0f0f10] flex flex-col">
       {/* Compact Header */}
-      <header className="sticky top-0 z-50 bg-[#0a0a0b]/95 backdrop-blur-sm border-b border-zinc-800/50">
+      <header className="sticky top-0 z-50 bg-[#0f0f10]/80 backdrop-blur-xl shadow-sm shadow-black/10">
         <div className="max-w-[1600px] mx-auto px-4 py-3">
           <div className="flex items-center gap-6">
             {/* Logo - clickable to reset */}
@@ -1281,7 +1281,7 @@ function HomeContent() {
 
         {/* Mobile Search Overlay */}
         {showMobileSearch && (
-          <div className="absolute top-full left-0 right-0 bg-[#0a0a0b] border-b border-zinc-800 p-4 shadow-2xl md:hidden z-40 animate-in slide-in-from-top-2">
+          <div className="absolute top-full left-0 right-0 bg-[#0f0f10] p-4 shadow-lg shadow-black/20 md:hidden z-40 animate-in slide-in-from-top-2">
             <SearchForm
               onSearch={async (n, l) => {
                 setShowMobileSearch(false);
@@ -1317,7 +1317,7 @@ function HomeContent() {
             {/* Toolbar - Responsive: stacks on mobile */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               {/* Tabs */}
-              <div className="flex items-center gap-1 p-1 bg-zinc-900 rounded-lg border border-zinc-800 overflow-x-auto">
+              <div className="flex items-center gap-1 p-1 bg-zinc-900/60 rounded-xl shadow-lg shadow-black/20 overflow-x-auto">
                 <button
                   onClick={() => setActiveTab('general')}
                   className={`px-3 sm:px-4 py-2 text-sm font-medium rounded-md transition-all whitespace-nowrap ${activeTab === 'general'
@@ -1366,7 +1366,7 @@ function HomeContent() {
                     }
                   }}
                   disabled={activeTab === 'upgraded' && tableBusinesses.length > 0 && tableBusinesses.every(b => isPendingBusiness(b))}
-                  className="px-3 py-2 text-sm font-medium rounded-lg bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-white border border-zinc-700 transition-all flex items-center gap-2 disabled:opacity-50"
+                  className="px-3 py-2 text-sm font-medium rounded-lg bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-white transition-all flex items-center gap-2 disabled:opacity-50"
                 >
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -1487,9 +1487,9 @@ function HomeContent() {
             )}
 
             {/* Data Table */}
-            <div className={`bg-zinc-900/50 border rounded-lg overflow-hidden ${activeTab === 'upgraded' && isPremium
-              ? 'border-violet-500/20'
-              : 'border-zinc-800'
+            <div className={`bg-zinc-900/60 rounded-xl shadow-lg shadow-black/20 overflow-hidden ${activeTab === 'upgraded' && isPremium
+              ? 'ring-1 ring-violet-500/20'
+              : ''
               }`}>
               {activeTab === 'general' ? (
                 <GeneralListTable
@@ -1583,10 +1583,10 @@ function HomeContent() {
       {/* Toast Notification */}
       {toastMessage && (
         <div className="fixed bottom-4 right-4 z-50 animate-in slide-in-from-bottom-4 fade-in duration-300">
-          <div className={`rounded-lg px-4 py-3 shadow-lg flex items-center gap-3 ${
+          <div className={`rounded-xl px-4 py-3 shadow-lg shadow-black/30 flex items-center gap-3 ${
             toastMessage.includes('Rate limited') || toastMessage.includes('wait')
-              ? 'bg-red-500/10 border border-red-500/30'
-              : 'bg-zinc-800 border border-zinc-700'
+              ? 'bg-red-500/10'
+              : 'bg-zinc-900'
           }`}>
             <div className={`w-2 h-2 rounded-full ${
               toastMessage.includes('successful') ? 'bg-emerald-500'

@@ -6,43 +6,55 @@
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap');
 
 :root {
-  /* Modern Dark Theme Palette */
-  --background: #09090b;
-  /* Zinc 950 */
+  /* Dark Refined Minimalism Palette */
+  --background: #0f0f10;
+  /* Soft black - slightly warmer */
   --foreground: #fafafa;
   /* Zinc 50 */
 
   --card: #18181b;
-  /* Zinc 900 */
+  /* Zinc 900 - elevated surface */
   --card-foreground: #fafafa;
 
   --popover: #18181b;
   --popover-foreground: #fafafa;
 
-  --primary: #4f46e5;
-  /* Indigo 600 - Professional & Trustworthy */
+  --primary: #8b5cf6;
+  /* Violet 500 - primary accent, used sparingly */
   --primary-foreground: #ffffff;
 
   --secondary: #27272a;
   /* Zinc 800 */
   --secondary-foreground: #fafafa;
 
-  --muted: #27272a;
+  --muted: #1f1f23;
+  /* Hover/interaction state */
   --muted-foreground: #a1a1aa;
-  /* Zinc 400 */
+  /* Zinc 400 - secondary text */
 
-  --accent: #27272a;
+  --accent: #8b5cf6;
+  /* Violet 500 */
   --accent-foreground: #fafafa;
 
   --destructive: #ef4444;
+  /* Red 500 - errors only */
   --destructive-foreground: #fafafa;
 
   --border: #27272a;
+  /* Zinc 800 - used sparingly */
   --input: #27272a;
-  --ring: #4f46e5;
-  /* Match primary for focus rings */
+  --ring: #8b5cf6;
+  /* Match primary accent */
 
   --radius: 0.5rem;
+
+  /* Semantic colors - used sparingly */
+  --success: #22c55e;
+  /* Green 500 */
+  --warning: #f59e0b;
+  /* Amber 500 */
+  --error: #ef4444;
+  /* Red 500 */
 }
 
 * {
@@ -114,4 +126,29 @@ th {
   background: rgba(24, 24, 27, 0.6);
   backdrop-filter: blur(12px);
   border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Elevation utilities */
+.elevation-1 {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+}
+
+.elevation-2 {
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.25), 0 4px 6px -4px rgba(0, 0, 0, 0.15);
+}
+
+.elevation-3 {
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.2);
+}
+
+/* Card pattern with shadow instead of border */
+.card-elevated {
+  background: #18181b;
+  border-radius: 0.75rem;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+}
+
+/* Subtle header shadow */
+.header-shadow {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }

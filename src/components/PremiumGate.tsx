@@ -104,7 +104,7 @@ export function PremiumGate({ onUpgradeClick, niche, location }: PremiumGateProp
                   <td className="py-4 px-4">
                     <div className="flex flex-wrap gap-1">
                       {business.signals.slice(0, 2).map((signal, i) => (
-                        <span key={i} className="inline-flex px-2 py-0.5 text-xs rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20">
+                        <span key={i} className="inline-flex px-2 py-0.5 text-xs rounded-full bg-amber-500/10 text-amber-500">
                           {signal}
                         </span>
                       ))}
@@ -134,10 +134,10 @@ export function PremiumGate({ onUpgradeClick, niche, location }: PremiumGateProp
 
           {/* Content card */}
           <div className="relative z-10 w-full max-w-xl mx-auto px-6">
-            <div className="bg-zinc-900/95 backdrop-blur-sm border border-zinc-800 rounded-2xl p-8 shadow-2xl">
+            <div className="bg-zinc-900/95 backdrop-blur-sm rounded-2xl p-8 shadow-2xl shadow-black/40">
               {/* Lock icon */}
               <div className="flex justify-center mb-6">
-                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-violet-500/10 border border-violet-500/20">
+                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-violet-500/10">
                   <svg className="w-8 h-8 text-violet-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                   </svg>
@@ -157,7 +157,7 @@ export function PremiumGate({ onUpgradeClick, niche, location }: PremiumGateProp
               </p>
 
               {/* Divider */}
-              <div className="border-t border-zinc-800 my-6" />
+              <div className="border-t border-zinc-800/30 my-6" />
 
               {/* Feature list - 2 columns */}
               <div className="grid grid-cols-2 gap-x-6 gap-y-3 mb-8">

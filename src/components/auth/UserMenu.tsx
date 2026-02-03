@@ -57,10 +57,10 @@ export function UserMenu({ user, credits, tier, onOpenBilling, onOpenSettings }:
   const userAvatar = user.user_metadata?.avatar_url;
 
   const tierColors: Record<string, string> = {
-    free: 'text-zinc-400 bg-zinc-400/10 border-zinc-400/20',
-    starter: 'text-blue-400 bg-blue-400/10 border-blue-400/20',
-    pro: 'text-violet-400 bg-violet-400/10 border-violet-400/20',
-    enterprise: 'text-amber-400 bg-amber-400/10 border-amber-400/20',
+    free: 'text-zinc-400 bg-zinc-800',
+    starter: 'text-zinc-300 bg-zinc-800',
+    pro: 'text-violet-400 bg-violet-500/10',
+    enterprise: 'text-zinc-300 bg-zinc-800',
   };
 
   const tierLabels: Record<string, string> = {
@@ -77,7 +77,7 @@ export function UserMenu({ user, credits, tier, onOpenBilling, onOpenSettings }:
         className="flex items-center gap-1.5 sm:gap-3 px-2 sm:px-3 py-1.5 hover:bg-zinc-800 rounded-lg transition-colors"
       >
         {/* Tier Badge - Hidden on mobile, visible on sm+ */}
-        <div className={`hidden sm:block px-2 py-1 text-[10px] font-bold rounded border ${tierColors[tier] || tierColors.free}`}>
+        <div className={`hidden sm:block px-2 py-1 text-[10px] font-bold rounded ${tierColors[tier] || tierColors.free}`}>
           {tierLabels[tier] || 'FREE'}
         </div>
 
@@ -115,9 +115,9 @@ export function UserMenu({ user, credits, tier, onOpenBilling, onOpenSettings }:
 
       {/* Dropdown Menu */}
       {isOpen && (
-        <div className="absolute right-0 top-full mt-2 w-72 bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl z-50 overflow-hidden">
+        <div className="absolute right-0 top-full mt-2 w-72 bg-zinc-900 rounded-xl shadow-lg shadow-black/30 z-50 overflow-hidden">
           {/* User Info */}
-          <div className="px-4 py-3 border-b border-zinc-800">
+          <div className="px-4 py-3">
             <div className="flex items-center gap-3">
               {userAvatar ? (
                 <img
@@ -141,7 +141,7 @@ export function UserMenu({ user, credits, tier, onOpenBilling, onOpenSettings }:
           </div>
 
           {/* Credits Section */}
-          <div className="px-4 py-3 border-b border-zinc-800">
+          <div className="px-4 py-3 bg-zinc-800/30">
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm text-zinc-400">Credits remaining</span>
               <span className="text-lg font-semibold text-white">{credits}</span>
@@ -196,7 +196,7 @@ export function UserMenu({ user, credits, tier, onOpenBilling, onOpenSettings }:
           </div>
 
           {/* Sign Out */}
-          <div className="border-t border-zinc-800 py-2">
+          <div className="py-2">
             <button
               onClick={handleSignOut}
               className="w-full flex items-center gap-3 px-4 py-2 text-sm text-red-400 hover:bg-red-500/10 transition-colors"

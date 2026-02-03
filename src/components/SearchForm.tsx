@@ -200,7 +200,7 @@ export function SearchForm({ onSearch, isLoading, initialNiche = '', initialLoca
   if (compact) {
     return (
       <form ref={formRef} onSubmit={handleSubmit} className="w-full">
-        <div className="flex items-center gap-3 bg-zinc-900 border border-zinc-700/50 rounded-full px-4 py-2 shadow-sm">
+        <div className="flex items-center gap-3 bg-zinc-900/60 rounded-full px-4 py-2 shadow-lg shadow-black/20">
           {/* Niche Section */}
           <div ref={nicheInputRef} className="relative flex items-center gap-2">
             <svg className="w-4 h-4 text-zinc-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -220,7 +220,7 @@ export function SearchForm({ onSearch, isLoading, initialNiche = '', initialLoca
               autoComplete="off"
             />
             {showNicheSuggestions && filteredNiches.length > 0 && (
-              <div className="absolute top-full left-0 mt-3 w-48 bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl z-50 py-1 overflow-hidden">
+              <div className="absolute top-full left-0 mt-3 w-48 bg-zinc-900 rounded-xl shadow-lg shadow-black/30 z-50 py-1 overflow-hidden">
                 {filteredNiches.map((item, index) => (
                   <button
                     key={index}
@@ -276,7 +276,7 @@ export function SearchForm({ onSearch, isLoading, initialNiche = '', initialLoca
               </button>
 
               {showRegionPicker && (
-                <div className="absolute top-full right-0 mt-3 w-52 bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl z-50 overflow-hidden">
+                <div className="absolute top-full right-0 mt-3 w-52 bg-zinc-900 rounded-xl shadow-lg shadow-black/30 z-50 overflow-hidden">
                   <div className="px-3 py-2 border-b border-zinc-800">
                     <input
                       autoFocus
@@ -326,7 +326,7 @@ export function SearchForm({ onSearch, isLoading, initialNiche = '', initialLoca
               </button>
 
               {showCountryPicker && (
-                <div className="absolute top-full right-0 mt-3 w-44 bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl z-50 py-1 overflow-hidden">
+                <div className="absolute top-full right-0 mt-3 w-44 bg-zinc-900 rounded-xl shadow-lg shadow-black/30 z-50 py-1 overflow-hidden">
                   <div className="px-3 py-1.5 border-b border-zinc-800">
                     <span className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">Country</span>
                   </div>
@@ -386,7 +386,7 @@ export function SearchForm({ onSearch, isLoading, initialNiche = '', initialLoca
   // ============================================
   return (
     <form ref={formRef} onSubmit={handleSubmit} className="w-full max-w-lg mx-auto px-4 sm:px-0">
-      <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-3 sm:p-6 space-y-3 sm:space-y-4">
+      <div className="bg-zinc-900/60 rounded-2xl shadow-lg shadow-black/20 p-3 sm:p-6 space-y-3 sm:space-y-4">
 
         {/* Niche Input */}
         <div ref={nicheInputRef} className="relative">
@@ -402,13 +402,13 @@ export function SearchForm({ onSearch, isLoading, initialNiche = '', initialLoca
             }}
             onFocus={() => setShowNicheSuggestions(true)}
             placeholder="e.g. Dentist, Plumber, Lawyer"
-            className="w-full px-3 sm:px-4 py-2.5 sm:py-3 bg-zinc-800/50 border border-zinc-700/50 rounded-lg text-sm sm:text-base text-zinc-100 placeholder:text-zinc-500 outline-none focus:border-violet-500/50 focus:bg-zinc-800 transition-all"
+            className="w-full px-3 sm:px-4 py-2.5 sm:py-3 bg-zinc-800/50 rounded-lg text-sm sm:text-base text-zinc-100 placeholder:text-zinc-500 outline-none focus:ring-1 focus:ring-violet-500/50 focus:bg-zinc-800 transition-all"
             disabled={isLoading}
             autoComplete="off"
           />
 
           {showNicheSuggestions && filteredNiches.length > 0 && (
-            <div className="absolute top-full left-0 right-0 mt-2 bg-zinc-900 border border-zinc-800 rounded-lg shadow-2xl z-50 overflow-hidden">
+            <div className="absolute top-full left-0 right-0 mt-2 bg-zinc-900 rounded-xl shadow-lg shadow-black/30 z-50 overflow-hidden">
               <div className="px-3 py-2 border-b border-zinc-800 flex items-center justify-between">
                 <span className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">Recent</span>
                 <button
@@ -456,7 +456,7 @@ export function SearchForm({ onSearch, isLoading, initialNiche = '', initialLoca
               value={city}
               onChange={(e) => setCity(e.target.value)}
               placeholder="City"
-              className="flex-1 px-3 sm:px-4 py-2.5 sm:py-3 bg-zinc-800/50 border border-zinc-700/50 rounded-lg text-sm sm:text-base text-zinc-100 placeholder:text-zinc-500 outline-none focus:border-violet-500/50 focus:bg-zinc-800 transition-all"
+              className="flex-1 px-3 sm:px-4 py-2.5 sm:py-3 bg-zinc-800/50  rounded-lg text-sm sm:text-base text-zinc-100 placeholder:text-zinc-500 outline-none focus:border-violet-500/50 focus:bg-zinc-800 transition-all"
               disabled={isLoading}
             />
 
@@ -470,7 +470,7 @@ export function SearchForm({ onSearch, isLoading, initialNiche = '', initialLoca
                     setShowRegionPicker(!showRegionPicker);
                     setRegionSearch('');
                   }}
-                  className="w-full sm:w-auto h-full px-3 sm:px-4 py-2.5 sm:py-3 flex items-center justify-between sm:justify-start gap-2 bg-zinc-800/50 border border-zinc-700/50 rounded-lg hover:border-zinc-600 transition-colors min-w-[80px]"
+                  className="w-full sm:w-auto h-full px-3 sm:px-4 py-2.5 sm:py-3 flex items-center justify-between sm:justify-start gap-2 bg-zinc-800/50  rounded-lg hover:border-zinc-600 transition-colors min-w-[80px]"
                   disabled={isLoading}
                 >
                   <span className={`text-sm ${!region ? 'text-zinc-500' : 'text-zinc-100'}`}>
@@ -482,7 +482,7 @@ export function SearchForm({ onSearch, isLoading, initialNiche = '', initialLoca
                 </button>
 
                 {showRegionPicker && (
-                  <div className="absolute left-0 sm:right-0 sm:left-auto top-full mt-2 w-56 bg-zinc-900 border border-zinc-800 rounded-lg shadow-2xl z-50 overflow-hidden">
+                  <div className="absolute left-0 sm:right-0 sm:left-auto top-full mt-2 w-56 bg-zinc-900 rounded-xl shadow-lg shadow-black/30 z-50 overflow-hidden">
                     <div className="px-2 py-2 border-b border-zinc-800">
                       <input
                         autoFocus
@@ -527,7 +527,7 @@ export function SearchForm({ onSearch, isLoading, initialNiche = '', initialLoca
                 <button
                   type="button"
                   onClick={() => setShowCountryPicker(!showCountryPicker)}
-                  className="h-full px-3 py-2.5 sm:py-3 flex items-center gap-1.5 bg-zinc-800/50 border border-zinc-700/50 rounded-lg hover:border-zinc-600 hover:bg-zinc-800 transition-colors"
+                  className="h-full px-3 py-2.5 sm:py-3 flex items-center gap-1.5 bg-zinc-800/50  rounded-lg hover:border-zinc-600 hover:bg-zinc-800 transition-colors"
                 >
                   <span className="text-base">{selectedCountry?.flag}</span>
                   <svg className={`w-3 h-3 text-zinc-400 transition-transform ${showCountryPicker ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -536,7 +536,7 @@ export function SearchForm({ onSearch, isLoading, initialNiche = '', initialLoca
                 </button>
 
                 {showCountryPicker && (
-                  <div className="absolute right-0 top-full mt-2 w-48 bg-zinc-900 border border-zinc-800 rounded-lg shadow-2xl z-50 py-1">
+                  <div className="absolute right-0 top-full mt-2 w-48 bg-zinc-900 rounded-xl shadow-lg shadow-black/30 z-50 py-1">
                     <div className="px-3 py-1.5 border-b border-zinc-800">
                       <span className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">Country</span>
                     </div>

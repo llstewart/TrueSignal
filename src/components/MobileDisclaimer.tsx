@@ -44,7 +44,7 @@ export function MobileDisclaimer() {
 
                         <button
                             onClick={handleDismiss}
-                            className="w-full py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white text-xs font-medium rounded-lg transition-colors border border-zinc-700/50"
+                            className="w-full py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white text-xs font-medium rounded-lg transition-colors"
                         >
                             Continue on Mobile
                         </button>

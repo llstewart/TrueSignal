@@ -48,7 +48,7 @@ function HeaderTooltip({
       </div>
       {isVisible && typeof window !== 'undefined' && createPortal(
         <div
-          className="fixed w-72 p-3 bg-zinc-900 border border-zinc-700 rounded-lg shadow-2xl z-[9999] animate-in fade-in duration-150"
+          className="fixed w-72 p-3 bg-zinc-900 rounded-lg shadow-2xl shadow-black/40 z-[9999] animate-in fade-in duration-150"
           style={{ top: position.top, left: position.left }}
           onMouseEnter={() => setIsVisible(true)}
           onMouseLeave={() => setIsVisible(false)}

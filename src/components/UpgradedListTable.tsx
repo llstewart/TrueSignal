@@ -714,7 +714,7 @@ export function UpgradedListTable({ businesses, niche, location, isLoadingMore, 
                             {(expandedSignals.has(startIndex + index) ? signals : signals.slice(0, 3)).map((signal, i) => (
                               <span
                                 key={i}
-                                className="inline-block px-2 py-0.5 text-xs bg-rose-500/10 text-rose-400 rounded border border-rose-500/20"
+                                className="inline-block px-2 py-0.5 text-xs bg-rose-500/10 text-rose-400 rounded"
                               >
                                 {signal}
                               </span>

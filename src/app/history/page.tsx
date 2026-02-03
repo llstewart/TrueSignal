@@ -117,9 +117,9 @@ export default function HistoryPage() {
   }, [selectedAnalysis?.searchKey]);
 
   return (
-    <div className="min-h-screen bg-[#0a0a0b]">
+    <div className="min-h-screen bg-[#0f0f10]">
       {/* Header */}
-      <header className="sticky top-0 z-50 bg-[#0a0a0b]/95 backdrop-blur-sm border-b border-zinc-800/50">
+      <header className="sticky top-0 z-50 bg-[#0f0f10]/80 backdrop-blur-xl shadow-sm shadow-black/10">
         <div className="max-w-7xl mx-auto px-4 py-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
@@ -255,10 +255,10 @@ export default function HistoryPage() {
                     <button
                       key={analysis.searchKey}
                       onClick={() => setSelectedAnalysis(analysis)}
-                      className={`flex-shrink-0 w-64 lg:w-full text-left p-3 lg:p-4 rounded-lg border transition-all ${
+                      className={`flex-shrink-0 w-64 lg:w-full text-left p-3 lg:p-4 rounded-xl transition-all ${
                         selectedAnalysis?.searchKey === analysis.searchKey
-                          ? 'bg-violet-500/10 border-violet-500/30 ring-1 ring-violet-500/20'
-                          : 'bg-zinc-900/50 border-zinc-800 hover:bg-zinc-800/50 hover:border-zinc-700'
+                          ? 'bg-violet-500/10 ring-1 ring-violet-500/30 shadow-lg shadow-violet-500/10'
+                          : 'bg-zinc-900/60 shadow-lg shadow-black/20 hover:bg-zinc-800/60'
                       }`}
                     >
                       <div className="font-medium text-white truncate text-sm lg:text-base">{analysis.niche}</div>
@@ -295,13 +295,13 @@ export default function HistoryPage() {
 
                   {/* Stats summary - responsive grid */}
                   <div className="grid grid-cols-3 gap-2 lg:gap-4 mb-4 lg:mb-6">
-                    <div className="bg-zinc-900/50 border border-zinc-800 rounded-lg p-2 lg:p-4">
+                    <div className="bg-zinc-900/60 rounded-xl shadow-lg shadow-black/20 p-2 lg:p-5">
                       <div className="text-lg lg:text-2xl font-bold text-emerald-400">
                         {selectedAnalysis.businesses.filter(b => calculateSeoNeedScore(b) >= 70).length}
                       </div>
                       <div className="text-[10px] lg:text-sm text-zinc-500">High Need</div>
                     </div>
-                    <div className="bg-zinc-900/50 border border-zinc-800 rounded-lg p-2 lg:p-4">
+                    <div className="bg-zinc-900/60 rounded-xl shadow-lg shadow-black/20 p-2 lg:p-5">
                       <div className="text-lg lg:text-2xl font-bold text-amber-400">
                         {selectedAnalysis.businesses.filter(b => {
                           const score = calculateSeoNeedScore(b);
@@ -310,7 +310,7 @@ export default function HistoryPage() {
                       </div>
                       <div className="text-[10px] lg:text-sm text-zinc-500">Medium Need</div>
                     </div>
-                    <div className="bg-zinc-900/50 border border-zinc-800 rounded-lg p-2 lg:p-4">
+                    <div className="bg-zinc-900/60 rounded-xl shadow-lg shadow-black/20 p-2 lg:p-5">
                       <div className="text-lg lg:text-2xl font-bold text-zinc-400">
                         {selectedAnalysis.businesses.filter(b => calculateSeoNeedScore(b) < 40).length}
                       </div>
@@ -339,10 +339,10 @@ export default function HistoryPage() {
                   </div>
 
                   {/* Business table */}
-                  <div className="bg-zinc-900/50 border border-zinc-800 rounded-lg overflow-hidden">
+                  <div className="bg-zinc-900/60 rounded-xl shadow-lg shadow-black/20 overflow-hidden">
                     <div className="overflow-x-auto">
                       <table className="w-full min-w-full">
-                        <thead className="bg-zinc-800/50 border-b border-zinc-700">
+                        <thead className="bg-zinc-800/30">
                           <tr>
                             <th className="text-left px-4 py-3 text-xs font-semibold text-zinc-400 uppercase tracking-wider">
                               Business
@@ -370,7 +370,7 @@ export default function HistoryPage() {
                             </th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-zinc-800">
+                        <tbody className="divide-y divide-zinc-800/30">
                           {(() => {
                             const sortedBusinesses = sortByPriority
                               ? [...selectedAnalysis.businesses].sort((a, b) => calculateSeoNeedScore(b) - calculateSeoNeedScore(a))
@@ -387,7 +387,7 @@ export default function HistoryPage() {
                               return (
                                 <tr
                                   key={business.placeId || business.name}
-                                  className="hover:bg-zinc-800/30 transition-colors"
+                                  className="hover:bg-white/[0.02] transition-colors"
                                 >
                                   {/* Business name & address */}
                                   <td className="px-4 py-3">
@@ -502,7 +502,7 @@ export default function HistoryPage() {
 
                     {/* Pagination */}
                     {selectedAnalysis.businesses.length > ITEMS_PER_PAGE && (
-                      <div className="flex items-center justify-between px-4 py-3 border-t border-zinc-800 bg-zinc-900/30">
+                      <div className="flex items-center justify-between px-4 py-3 bg-zinc-800/20">
                         <span className="text-xs text-zinc-500">
                           Page {currentPage} of {Math.ceil(selectedAnalysis.businesses.length / ITEMS_PER_PAGE)}
                         </span>

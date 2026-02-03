@@ -17,7 +17,7 @@ export function SessionIndicator({ isConnected, savedCount, onOpenHistory }: Ses
         onClick={onOpenHistory}
         onMouseEnter={() => setShowTooltip(true)}
         onMouseLeave={() => setShowTooltip(false)}
-        className="flex items-center gap-2 px-3 py-1.5 bg-zinc-800/50 hover:bg-zinc-800 border border-zinc-700/50 rounded-lg transition-colors"
+        className="flex items-center gap-2 px-3 py-1.5 bg-zinc-800/50 hover:bg-zinc-800 rounded-lg transition-colors"
       >
         {/* Status dot */}
         <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-zinc-500'}`} />
@@ -37,7 +37,7 @@ export function SessionIndicator({ isConnected, savedCount, onOpenHistory }: Ses
 
       {/* Tooltip */}
       {showTooltip && (
-        <div className="absolute top-full right-0 mt-2 px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl z-50 whitespace-nowrap">
+        <div className="absolute top-full right-0 mt-2 px-3 py-2 bg-zinc-800 rounded-lg shadow-xl shadow-black/30 z-50 whitespace-nowrap">
           <div className="text-sm text-white font-medium">
             {isConnected ? 'Session Active' : 'Session Offline'}
           </div>

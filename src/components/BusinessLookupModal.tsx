@@ -210,9 +210,9 @@ export function BusinessLookupModal({ isOpen, onClose, isPremium, onUpgradeClick
       />
 
       {/* Modal */}
-      <div className="relative w-full max-w-lg bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl overflow-hidden">
+      <div className="relative w-full max-w-lg bg-zinc-900 rounded-xl shadow-2xl shadow-black/40 overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800">
+        <div className="flex items-center justify-between px-6 py-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-violet-500/20 flex items-center justify-center">
               <svg className="w-5 h-5 text-violet-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -248,7 +248,7 @@ export function BusinessLookupModal({ isOpen, onClose, isPremium, onUpgradeClick
                   value={businessName}
                   onChange={(e) => setBusinessName(e.target.value)}
                   placeholder="e.g., Joe's Plumbing"
-                  className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                  className="w-full px-4 py-3 bg-zinc-800/50 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                   disabled={state === 'searching'}
                   onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                 />
@@ -262,7 +262,7 @@ export function BusinessLookupModal({ isOpen, onClose, isPremium, onUpgradeClick
                   value={location}
                   onChange={(e) => setLocation(e.target.value)}
                   placeholder="e.g., Austin, TX"
-                  className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                  className="w-full px-4 py-3 bg-zinc-800/50 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                   disabled={state === 'searching'}
                   onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                 />
@@ -311,7 +311,7 @@ export function BusinessLookupModal({ isOpen, onClose, isPremium, onUpgradeClick
           {/* Found Business - Pre-Intel */}
           {(state === 'found' || state === 'analyzing') && foundBusiness && (
             <div className="space-y-4">
-              <div className="p-4 bg-zinc-800/50 border border-zinc-700 rounded-lg">
+              <div className="p-4 bg-zinc-800/50 rounded-lg">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1 min-w-0">
                     <h3 className="font-semibold text-white truncate">{foundBusiness.name}</h3>
@@ -404,7 +404,7 @@ export function BusinessLookupModal({ isOpen, onClose, isPremium, onUpgradeClick
           {state === 'complete' && enrichedBusiness && (
             <div className="space-y-4">
               {/* Business Header with Score */}
-              <div className="p-4 bg-zinc-800/50 border border-zinc-700 rounded-lg">
+              <div className="p-4 bg-zinc-800/50 rounded-lg">
                 <div className="flex items-start justify-between gap-4 mb-4">
                   <div className="flex-1 min-w-0">
                     <h3 className="font-semibold text-white truncate">{enrichedBusiness.name}</h3>
@@ -424,7 +424,7 @@ export function BusinessLookupModal({ isOpen, onClose, isPremium, onUpgradeClick
                       {signals.map((signal, i) => (
                         <span
                           key={i}
-                          className="px-2 py-1 text-xs bg-rose-500/10 text-rose-400 rounded border border-rose-500/20"
+                          className="px-2 py-1 text-xs bg-rose-500/10 text-rose-400 rounded"
                         >
                           {signal}
                         </span>
@@ -473,7 +473,7 @@ export function BusinessLookupModal({ isOpen, onClose, isPremium, onUpgradeClick
 
                 {/* Contact Info */}
                 {(enrichedBusiness.phone || enrichedBusiness.website) && (
-                  <div className="mt-4 pt-4 border-t border-zinc-700">
+                  <div className="mt-4 pt-4 border-t border-zinc-800/50">
                     <p className="text-xs text-zinc-500 uppercase tracking-wider mb-2">Contact</p>
                     <div className="space-y-2">
                       {enrichedBusiness.phone && (

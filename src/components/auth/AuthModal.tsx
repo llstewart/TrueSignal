@@ -110,11 +110,11 @@ export function AuthModal({ isOpen, onClose, defaultMode = 'signin' }: AuthModal
       {/* Modal */}
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
         <div
-          className="w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl my-auto"
+          className="w-full max-w-md bg-zinc-900 rounded-2xl shadow-2xl shadow-black/40 my-auto"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
-          <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800">
+          <div className="flex items-center justify-between px-6 py-4">
             <h2 className="text-xl font-semibold text-white">
               {mode === 'signin' && 'Welcome back'}
               {mode === 'signup' && 'Create account'}
@@ -211,7 +211,7 @@ export function AuthModal({ isOpen, onClose, defaultMode = 'signin' }: AuthModal
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         required
-                        className="w-full px-4 py-2.5 bg-zinc-800 border border-zinc-700 rounded-lg text-white placeholder:text-zinc-500 focus:outline-none focus:border-violet-500 transition-colors"
+                        className="w-full px-4 py-2.5 bg-zinc-800/50 rounded-lg text-white placeholder:text-zinc-500 focus:outline-none focus:ring-1 focus:ring-violet-500/50 transition-colors"
                         placeholder="you@example.com"
                       />
                     </div>
@@ -224,7 +224,7 @@ export function AuthModal({ isOpen, onClose, defaultMode = 'signin' }: AuthModal
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         required
-                        className="w-full px-4 py-2.5 bg-zinc-800 border border-zinc-700 rounded-lg text-white placeholder:text-zinc-500 focus:outline-none focus:border-violet-500 transition-colors"
+                        className="w-full px-4 py-2.5 bg-zinc-800/50 rounded-lg text-white placeholder:text-zinc-500 focus:outline-none focus:ring-1 focus:ring-violet-500/50 transition-colors"
                         placeholder="••••••••"
                       />
                     </div>
@@ -259,7 +259,7 @@ export function AuthModal({ isOpen, onClose, defaultMode = 'signin' }: AuthModal
                         value={fullName}
                         onChange={(e) => setFullName(e.target.value)}
                         required
-                        className="w-full px-4 py-2.5 bg-zinc-800 border border-zinc-700 rounded-lg text-white placeholder:text-zinc-500 focus:outline-none focus:border-violet-500 transition-colors"
+                        className="w-full px-4 py-2.5 bg-zinc-800/50 rounded-lg text-white placeholder:text-zinc-500 focus:outline-none focus:ring-1 focus:ring-violet-500/50 transition-colors"
                         placeholder="John Doe"
                       />
                     </div>
@@ -272,7 +272,7 @@ export function AuthModal({ isOpen, onClose, defaultMode = 'signin' }: AuthModal
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         required
-                        className="w-full px-4 py-2.5 bg-zinc-800 border border-zinc-700 rounded-lg text-white placeholder:text-zinc-500 focus:outline-none focus:border-violet-500 transition-colors"
+                        className="w-full px-4 py-2.5 bg-zinc-800/50 rounded-lg text-white placeholder:text-zinc-500 focus:outline-none focus:ring-1 focus:ring-violet-500/50 transition-colors"
                         placeholder="you@example.com"
                       />
                     </div>
@@ -286,7 +286,7 @@ export function AuthModal({ isOpen, onClose, defaultMode = 'signin' }: AuthModal
                         onChange={(e) => setPassword(e.target.value)}
                         required
                         minLength={6}
-                        className="w-full px-4 py-2.5 bg-zinc-800 border border-zinc-700 rounded-lg text-white placeholder:text-zinc-500 focus:outline-none focus:border-violet-500 transition-colors"
+                        className="w-full px-4 py-2.5 bg-zinc-800/50 rounded-lg text-white placeholder:text-zinc-500 focus:outline-none focus:ring-1 focus:ring-violet-500/50 transition-colors"
                         placeholder="••••••••"
                       />
                       <p className="mt-1 text-xs text-zinc-500">Minimum 6 characters</p>
@@ -316,7 +316,7 @@ export function AuthModal({ isOpen, onClose, defaultMode = 'signin' }: AuthModal
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         required
-                        className="w-full px-4 py-2.5 bg-zinc-800 border border-zinc-700 rounded-lg text-white placeholder:text-zinc-500 focus:outline-none focus:border-violet-500 transition-colors"
+                        className="w-full px-4 py-2.5 bg-zinc-800/50 rounded-lg text-white placeholder:text-zinc-500 focus:outline-none focus:ring-1 focus:ring-violet-500/50 transition-colors"
                         placeholder="you@example.com"
                       />
                     </div>
@@ -369,7 +369,7 @@ export function AuthModal({ isOpen, onClose, defaultMode = 'signin' }: AuthModal
 
           {/* Footer */}
           {mode === 'signup' && !message && (
-            <div className="px-6 py-4 border-t border-zinc-800 text-center">
+            <div className="px-6 py-4 text-center">
               <p className="text-xs text-zinc-500">
                 By signing up, you agree to our{' '}
                 <a href="/terms" className="text-violet-400 hover:text-violet-300">

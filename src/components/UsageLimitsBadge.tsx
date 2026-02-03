@@ -45,10 +45,10 @@ export function UsageLimitsBadge({ sessionId }: UsageLimitsProps) {
     <div className="relative">
       <button
         onClick={() => setShowDetails(!showDetails)}
-        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-colors ${
+        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-colors ${
           isNearLimit
-            ? 'bg-amber-500/10 border-amber-500/30 text-amber-400'
-            : 'bg-zinc-800/50 border-zinc-700/50 text-zinc-400 hover:bg-zinc-800'
+            ? 'bg-amber-500/10 text-amber-400'
+            : 'bg-zinc-800/50 text-zinc-400 hover:bg-zinc-800'
         }`}
       >
         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -63,7 +63,7 @@ export function UsageLimitsBadge({ sessionId }: UsageLimitsProps) {
       {showDetails && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setShowDetails(false)} />
-          <div className="absolute top-full right-0 mt-2 w-64 bg-zinc-800 border border-zinc-700 rounded-xl shadow-xl z-50 p-4">
+          <div className="absolute top-full right-0 mt-2 w-64 bg-zinc-800 rounded-xl shadow-xl shadow-black/30 z-50 p-4">
             <h3 className="text-sm font-semibold text-white mb-3">Usage This Minute</h3>
 
             {/* Searches */}
