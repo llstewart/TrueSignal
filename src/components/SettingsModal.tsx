@@ -46,7 +46,8 @@ export function SettingsModal({ isOpen, onClose, user }: SettingsModalProps) {
       sessionStorage.clear();
       localStorage.removeItem('truesignal_session');
       localStorage.removeItem('truesignal_sid');
-      window.location.href = '/';
+      // Force a hard reload to homepage (replace prevents back button returning to old state)
+      window.location.replace('/');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong');
       setIsDeleting(false);

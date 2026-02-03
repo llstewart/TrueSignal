@@ -30,13 +30,16 @@ export function UserMenu({ user, credits, tier, onOpenBilling, onOpenSettings }:
   }, []);
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut();
-    // Clear all local storage for complete session refresh
+    // Clear all storage FIRST before signing out
     sessionStorage.clear();
     localStorage.removeItem('truesignal_session');
     localStorage.removeItem('truesignal_sid');
-    // Redirect to homepage
-    window.location.href = '/';
+
+    // Sign out from Supabase
+    await supabase.auth.signOut();
+
+    // Force a hard reload to homepage (replace prevents back button returning to old state)
+    window.location.replace('/');
   };
 
   const userInitial = user.user_metadata?.full_name?.[0] || user.email?.[0] || '?';
