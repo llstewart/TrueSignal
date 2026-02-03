@@ -203,8 +203,8 @@ export function UpgradedListTable({ businesses, niche, location, isLoadingMore, 
         </h3>
         <p className="text-muted-foreground max-w-sm">
           {unanalyzedCount > 0
-            ? `You have ${unanalyzedCount} businesses ready to analyze. Go to the "All Results" tab and click "Analyze All" to unlock SEO Signals.`
-            : 'Run an analysis on your search results to unlock Hidden Signals and high-value data.'
+            ? `You have ${unanalyzedCount} businesses ready. Go to the "All Results" tab and click "Get Lead Intel" to unlock qualification data.`
+            : 'Click "Get Lead Intel" on your search results to unlock qualification signals and high-value data.'
           }
         </p>
         {unanalyzedCount > 0 && (

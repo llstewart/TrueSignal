@@ -12,6 +12,7 @@ import { AuthModal } from '@/components/auth/AuthModal';
 import { UserMenu } from '@/components/auth/UserMenu';
 import { BillingModal } from '@/components/BillingModal';
 import { SettingsModal } from '@/components/SettingsModal';
+import { BusinessLookupModal } from '@/components/BusinessLookupModal';
 import { useUser } from '@/hooks/useUser';
 // Note: SessionIndicator removed - replaced by UserMenu
 import { Business, EnrichedBusiness, TableBusiness, PendingBusiness, isPendingBusiness, isEnrichedBusiness } from '@/lib/types';
@@ -71,6 +72,7 @@ function HomeContent() {
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
   const [showBillingModal, setShowBillingModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showLookupModal, setShowLookupModal] = useState(false);
 
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [tableBusinesses, setTableBusinesses] = useState<TableBusiness[]>([]);
@@ -486,7 +488,7 @@ function HomeContent() {
 
     // Check if user has a paid subscription (not free tier)
     if (!subscription || subscription.tier === 'free') {
-      setError('Upgrade to a paid plan to access SEO Signals analysis.');
+      setError('Upgrade to unlock Lead Intel features.');
       setShowBillingModal(true);
       return;
     }
@@ -559,14 +561,14 @@ function HomeContent() {
           const errorData = await response.json();
           if (errorData.requiresAuth) {
             setIsAnalyzing(false);
-            setError('Please sign in to use Signal Pro analysis');
+            setError('Please sign in to unlock Lead Intel');
             setAuthMode('signin');
             setShowAuthModal(true);
             return;
           }
           if (errorData.requiresUpgrade) {
             setIsAnalyzing(false);
-            setError('Upgrade to a paid plan to use Signal Pro analysis');
+            setError('Upgrade to unlock Lead Intel features');
             setShowBillingModal(true);
             return;
           }
@@ -758,12 +760,23 @@ function HomeContent() {
 
             {/* Search Form - only shown to logged-in users */}
             {user ? (
-              <SearchForm
-                onSearch={handleSearch}
-                isLoading={isSearching}
-                initialNiche={searchParams?.niche}
-                initialLocation={searchParams?.location}
-              />
+              <div className="space-y-4">
+                <SearchForm
+                  onSearch={handleSearch}
+                  isLoading={isSearching}
+                  initialNiche={searchParams?.niche}
+                  initialLocation={searchParams?.location}
+                />
+                <button
+                  onClick={() => setShowLookupModal(true)}
+                  className="text-sm text-zinc-500 hover:text-violet-400 transition-colors flex items-center gap-2 mx-auto"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                  Or look up a specific business
+                </button>
+              </div>
             ) : (
               /* Sign-up CTA for non-logged-in users */
               <div className="max-w-md mx-auto">
@@ -832,7 +845,7 @@ function HomeContent() {
                 </div>
                 <div>
                   <div className="text-2xl font-bold text-white">10+</div>
-                  <div className="text-xs text-zinc-500">SEO Signals</div>
+                  <div className="text-xs text-zinc-500">Intel Points</div>
                 </div>
               </div>
             )}
@@ -897,6 +910,17 @@ function HomeContent() {
           />
         )}
 
+        {/* Business Lookup Modal (Hero Mode) */}
+        <BusinessLookupModal
+          isOpen={showLookupModal}
+          onClose={() => setShowLookupModal(false)}
+          isPremium={isPremium}
+          onUpgradeClick={() => {
+            setShowLookupModal(false);
+            setShowBillingModal(true);
+          }}
+        />
+
         {/* Toast Notification */}
         {toastMessage && (
           <div className="fixed bottom-4 right-4 z-50 animate-in slide-in-from-bottom-4 fade-in duration-300">
@@ -960,6 +984,18 @@ function HomeContent() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
               <span>New Search</span>
+            </button>
+
+            {/* Business Lookup Button */}
+            <button
+              onClick={() => setShowLookupModal(true)}
+              className="hidden md:flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-zinc-400 hover:text-white border border-zinc-700 hover:border-zinc-600 rounded-lg transition-colors"
+              title="Look up a specific business"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <span>Lookup</span>
             </button>
 
             {/* Compact Search Form */}
@@ -1082,7 +1118,7 @@ function HomeContent() {
                       : 'text-zinc-400 hover:text-white'
                   }`}
                 >
-                  <span>Signals</span>
+                  <span>Lead Intel</span>
                   {isPremium ? (
                     <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
                       PRO
@@ -1130,14 +1166,14 @@ function HomeContent() {
                       className="px-3 sm:px-4 py-2 text-sm font-medium rounded-lg bg-violet-600 text-white hover:bg-violet-500 transition-all flex items-center gap-2 disabled:opacity-50"
                     >
                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                       </svg>
                       <span className="hidden sm:inline">
                         {selectedBusinesses.size > 0
-                          ? `Analyze ${selectedBusinesses.size} Selected`
-                          : 'Analyze All'}
+                          ? `Get Intel on ${selectedBusinesses.size}`
+                          : 'Get Lead Intel'}
                       </span>
-                      <span className="sm:hidden">Analyze</span>
+                      <span className="sm:hidden">Get Intel</span>
                     </button>
                   ) : (
                     <button
@@ -1145,10 +1181,10 @@ function HomeContent() {
                       className="px-3 sm:px-4 py-2 text-sm font-medium rounded-lg bg-gradient-to-r from-violet-600 to-purple-600 text-white hover:from-violet-500 hover:to-purple-500 transition-all flex items-center gap-2"
                     >
                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                       </svg>
-                      <span className="hidden sm:inline">Upgrade to Analyze</span>
-                      <span className="sm:hidden">Upgrade</span>
+                      <span className="hidden sm:inline">Unlock Lead Intel</span>
+                      <span className="sm:hidden">Unlock</span>
                     </button>
                   )
                 )}
@@ -1321,6 +1357,17 @@ function HomeContent() {
           user={user}
         />
       )}
+
+      {/* Business Lookup Modal */}
+      <BusinessLookupModal
+        isOpen={showLookupModal}
+        onClose={() => setShowLookupModal(false)}
+        isPremium={isPremium}
+        onUpgradeClick={() => {
+          setShowLookupModal(false);
+          setShowBillingModal(true);
+        }}
+      />
 
       {/* Toast Notification */}
       {toastMessage && (

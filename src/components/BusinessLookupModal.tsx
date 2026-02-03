@@ -1,0 +1,453 @@
+'use client';
+
+import { useState } from 'react';
+import { Business, EnrichedBusiness, isEnrichedBusiness } from '@/lib/types';
+import { StatusTag } from './StatusTag';
+import { calculateSeoNeedScore, getSeoNeedSummary } from '@/lib/signals';
+
+interface BusinessLookupModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  isPremium: boolean;
+  onUpgradeClick: () => void;
+}
+
+type LookupState = 'idle' | 'searching' | 'found' | 'analyzing' | 'complete' | 'not-found' | 'error';
+
+export function BusinessLookupModal({ isOpen, onClose, isPremium, onUpgradeClick }: BusinessLookupModalProps) {
+  const [businessName, setBusinessName] = useState('');
+  const [location, setLocation] = useState('');
+  const [state, setState] = useState<LookupState>('idle');
+  const [foundBusiness, setFoundBusiness] = useState<Business | null>(null);
+  const [enrichedBusiness, setEnrichedBusiness] = useState<EnrichedBusiness | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSearch = async () => {
+    if (!businessName.trim() || !location.trim()) return;
+
+    setState('searching');
+    setError(null);
+    setFoundBusiness(null);
+    setEnrichedBusiness(null);
+
+    try {
+      // Search for the specific business
+      const response = await fetch('/api/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          niche: businessName.trim(),
+          location: location.trim(),
+          limit: 5, // Get a few results to find best match
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Search failed');
+      }
+
+      const data = await response.json();
+      const businesses: Business[] = data.businesses || [];
+
+      if (businesses.length === 0) {
+        setState('not-found');
+        return;
+      }
+
+      // Find best match by name similarity
+      const searchName = businessName.toLowerCase().trim();
+      const bestMatch = businesses.find(b =>
+        b.name.toLowerCase().includes(searchName) ||
+        searchName.includes(b.name.toLowerCase())
+      ) || businesses[0];
+
+      setFoundBusiness(bestMatch);
+      setState('found');
+    } catch (err) {
+      console.error('Lookup error:', err);
+      setError('Failed to search. Please try again.');
+      setState('error');
+    }
+  };
+
+  const handleGetIntel = async () => {
+    if (!foundBusiness || !isPremium) return;
+
+    setState('analyzing');
+    setError(null);
+
+    try {
+      const response = await fetch('/api/analyze-single', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          business: foundBusiness,
+          niche: businessName.trim(),
+          location: location.trim(),
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        if (errorData.requiresUpgrade) {
+          setError('Upgrade to unlock Lead Intel features');
+          setState('found');
+          return;
+        }
+        if (errorData.insufficientCredits) {
+          setError('Insufficient credits. Please purchase more.');
+          setState('found');
+          return;
+        }
+        throw new Error(errorData.error || 'Analysis failed');
+      }
+
+      const data = await response.json();
+      setEnrichedBusiness(data.business);
+      setState('complete');
+    } catch (err) {
+      console.error('Analysis error:', err);
+      setError('Failed to analyze. Please try again.');
+      setState('found');
+    }
+  };
+
+  const handleClose = () => {
+    setBusinessName('');
+    setLocation('');
+    setState('idle');
+    setFoundBusiness(null);
+    setEnrichedBusiness(null);
+    setError(null);
+    onClose();
+  };
+
+  const handleReset = () => {
+    setState('idle');
+    setFoundBusiness(null);
+    setEnrichedBusiness(null);
+    setError(null);
+  };
+
+  if (!isOpen) return null;
+
+  const seoScore = enrichedBusiness ? calculateSeoNeedScore(enrichedBusiness) : 0;
+  const signals = enrichedBusiness ? getSeoNeedSummary(enrichedBusiness) : [];
+
+  const getScoreColor = (score: number) => {
+    if (score >= 70) return 'text-emerald-400 bg-emerald-500/20 border-emerald-500/30';
+    if (score >= 40) return 'text-amber-400 bg-amber-500/20 border-amber-500/30';
+    return 'text-zinc-400 bg-zinc-700 border-zinc-600';
+  };
+
+  const getScoreLabel = (score: number) => {
+    if (score >= 70) return 'High Opportunity';
+    if (score >= 40) return 'Medium Opportunity';
+    return 'Low Opportunity';
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      {/* Backdrop */}
+      <div
+        className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+        onClick={handleClose}
+      />
+
+      {/* Modal */}
+      <div className="relative w-full max-w-lg bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-violet-500/20 flex items-center justify-center">
+              <svg className="w-5 h-5 text-violet-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-white">Business Lookup</h2>
+              <p className="text-sm text-zinc-500">Search for a specific business</p>
+            </div>
+          </div>
+          <button
+            onClick={handleClose}
+            className="p-2 text-zinc-500 hover:text-white rounded-lg hover:bg-zinc-800 transition-colors"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="p-6">
+          {/* Search Form - always visible */}
+          {(state === 'idle' || state === 'searching' || state === 'not-found' || state === 'error') && (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-zinc-400 mb-2">
+                  Business Name
+                </label>
+                <input
+                  type="text"
+                  value={businessName}
+                  onChange={(e) => setBusinessName(e.target.value)}
+                  placeholder="e.g., Joe's Plumbing"
+                  className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                  disabled={state === 'searching'}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-zinc-400 mb-2">
+                  City / Location
+                </label>
+                <input
+                  type="text"
+                  value={location}
+                  onChange={(e) => setLocation(e.target.value)}
+                  placeholder="e.g., Austin, TX"
+                  className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                  disabled={state === 'searching'}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                />
+              </div>
+
+              {error && (
+                <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm">
+                  {error}
+                </div>
+              )}
+
+              {state === 'not-found' && (
+                <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+                  <p className="text-amber-400 text-sm font-medium">No business found</p>
+                  <p className="text-amber-400/70 text-xs mt-1">
+                    Try adjusting the business name or check the location spelling.
+                  </p>
+                </div>
+              )}
+
+              <button
+                onClick={handleSearch}
+                disabled={!businessName.trim() || !location.trim() || state === 'searching'}
+                className="w-full py-3 bg-violet-600 hover:bg-violet-500 disabled:bg-zinc-700 disabled:text-zinc-500 text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
+              >
+                {state === 'searching' ? (
+                  <>
+                    <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    </svg>
+                    Searching...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                    Find Business
+                  </>
+                )}
+              </button>
+            </div>
+          )}
+
+          {/* Found Business - Pre-Intel */}
+          {(state === 'found' || state === 'analyzing') && foundBusiness && (
+            <div className="space-y-4">
+              <div className="p-4 bg-zinc-800/50 border border-zinc-700 rounded-lg">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-semibold text-white truncate">{foundBusiness.name}</h3>
+                    <p className="text-sm text-zinc-500 mt-1 truncate">{foundBusiness.address}</p>
+                    <div className="flex items-center gap-4 mt-3 text-sm">
+                      {foundBusiness.rating > 0 && (
+                        <span className="text-zinc-400">{foundBusiness.rating}★</span>
+                      )}
+                      <span className="text-zinc-500">{foundBusiness.reviewCount} reviews</span>
+                      {foundBusiness.website && (
+                        <a
+                          href={foundBusiness.website.startsWith('http') ? foundBusiness.website : `https://${foundBusiness.website}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-violet-400 hover:text-violet-300 truncate max-w-[150px]"
+                        >
+                          {foundBusiness.website.replace(/^https?:\/\//, '').replace(/\/$/, '')}
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                  <StatusTag status={foundBusiness.claimed ? 'success' : 'warning'}>
+                    {foundBusiness.claimed ? 'Claimed' : 'Unclaimed'}
+                  </StatusTag>
+                </div>
+              </div>
+
+              {error && (
+                <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm">
+                  {error}
+                </div>
+              )}
+
+              <div className="flex gap-3">
+                <button
+                  onClick={handleReset}
+                  className="flex-1 py-3 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium rounded-lg transition-colors"
+                >
+                  Search Again
+                </button>
+                {isPremium ? (
+                  <button
+                    onClick={handleGetIntel}
+                    disabled={state === 'analyzing'}
+                    className="flex-1 py-3 bg-violet-600 hover:bg-violet-500 disabled:bg-violet-600/50 text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
+                  >
+                    {state === 'analyzing' ? (
+                      <>
+                        <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                        </svg>
+                        Analyzing...
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                        </svg>
+                        Get Lead Intel
+                      </>
+                    )}
+                  </button>
+                ) : (
+                  <button
+                    onClick={onUpgradeClick}
+                    className="flex-1 py-3 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
+                    Unlock Lead Intel
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Complete - With Intel */}
+          {state === 'complete' && enrichedBusiness && (
+            <div className="space-y-4">
+              {/* Business Header with Score */}
+              <div className="p-4 bg-zinc-800/50 border border-zinc-700 rounded-lg">
+                <div className="flex items-start justify-between gap-4 mb-4">
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-semibold text-white truncate">{enrichedBusiness.name}</h3>
+                    <p className="text-sm text-zinc-500 mt-1 truncate">{enrichedBusiness.address}</p>
+                  </div>
+                  <div className={`px-3 py-2 rounded-lg border text-center ${getScoreColor(seoScore)}`}>
+                    <div className="text-2xl font-bold">{seoScore}</div>
+                    <div className="text-[10px] uppercase tracking-wider opacity-80">{getScoreLabel(seoScore)}</div>
+                  </div>
+                </div>
+
+                {/* Signals */}
+                {signals.length > 0 && (
+                  <div className="mb-4">
+                    <p className="text-xs text-zinc-500 uppercase tracking-wider mb-2">Opportunity Signals</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {signals.map((signal, i) => (
+                        <span
+                          key={i}
+                          className="px-2 py-1 text-xs bg-rose-500/10 text-rose-400 rounded border border-rose-500/20"
+                        >
+                          {signal}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Intel Grid */}
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div className="p-3 bg-zinc-900/50 rounded-lg">
+                    <p className="text-zinc-500 text-xs mb-1">Rating</p>
+                    <p className="text-white font-medium">
+                      {enrichedBusiness.rating ? `${enrichedBusiness.rating}★` : 'No rating'}
+                    </p>
+                  </div>
+                  <div className="p-3 bg-zinc-900/50 rounded-lg">
+                    <p className="text-zinc-500 text-xs mb-1">Reviews</p>
+                    <p className="text-white font-medium">{enrichedBusiness.reviewCount || 0}</p>
+                  </div>
+                  <div className="p-3 bg-zinc-900/50 rounded-lg">
+                    <p className="text-zinc-500 text-xs mb-1">Response Rate</p>
+                    <p className="text-white font-medium">{enrichedBusiness.responseRate}%</p>
+                  </div>
+                  <div className="p-3 bg-zinc-900/50 rounded-lg">
+                    <p className="text-zinc-500 text-xs mb-1">Search Visibility</p>
+                    <StatusTag status={enrichedBusiness.searchVisibility ? 'success' : 'error'}>
+                      {enrichedBusiness.searchVisibility ? 'Ranked' : 'Not Ranked'}
+                    </StatusTag>
+                  </div>
+                  <div className="p-3 bg-zinc-900/50 rounded-lg">
+                    <p className="text-zinc-500 text-xs mb-1">Claim Status</p>
+                    <StatusTag status={enrichedBusiness.claimed ? 'success' : 'warning'}>
+                      {enrichedBusiness.claimed ? 'Claimed' : 'Unclaimed'}
+                    </StatusTag>
+                  </div>
+                  <div className="p-3 bg-zinc-900/50 rounded-lg">
+                    <p className="text-zinc-500 text-xs mb-1">Website Tech</p>
+                    <p className="text-white font-medium text-xs truncate">
+                      {enrichedBusiness.websiteTech || 'No website'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Contact Info */}
+                {(enrichedBusiness.phone || enrichedBusiness.website) && (
+                  <div className="mt-4 pt-4 border-t border-zinc-700">
+                    <p className="text-xs text-zinc-500 uppercase tracking-wider mb-2">Contact</p>
+                    <div className="space-y-2">
+                      {enrichedBusiness.phone && (
+                        <a
+                          href={`tel:${enrichedBusiness.phone}`}
+                          className="flex items-center gap-2 text-sm text-zinc-300 hover:text-white"
+                        >
+                          <svg className="w-4 h-4 text-zinc-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                          </svg>
+                          {enrichedBusiness.phone}
+                        </a>
+                      )}
+                      {enrichedBusiness.website && (
+                        <a
+                          href={enrichedBusiness.website.startsWith('http') ? enrichedBusiness.website : `https://${enrichedBusiness.website}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-2 text-sm text-violet-400 hover:text-violet-300"
+                        >
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
+                          </svg>
+                          {enrichedBusiness.website.replace(/^https?:\/\//, '').replace(/\/$/, '')}
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <button
+                onClick={handleReset}
+                className="w-full py-3 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium rounded-lg transition-colors"
+              >
+                Look Up Another Business
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

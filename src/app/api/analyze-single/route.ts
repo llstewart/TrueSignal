@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
 
   if (!subscription || subscription.tier === 'free') {
     return NextResponse.json({
-      error: 'Upgrade to a paid plan to use Signal Pro analysis',
+      error: 'Upgrade to unlock Lead Intel features',
       requiresUpgrade: true
     }, { status: 403 });
   }
