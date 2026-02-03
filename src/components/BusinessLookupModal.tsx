@@ -31,35 +31,13 @@ export function BusinessLookupModal({ isOpen, onClose, isPremium, onUpgradeClick
   const handleSearch = async () => {
     if (!businessName.trim() || !location.trim()) return;
 
-    // Require user to be logged in
-    if (!user) {
-      setError('Please sign in to search for businesses.');
-      return;
-    }
-
     setState('searching');
     setError(null);
     setFoundBusiness(null);
     setEnrichedBusiness(null);
 
     try {
-      // Check if user has credits for search (0.5 credits)
-      const currentCredits = await getCredits();
-      if (currentCredits < 0.5) {
-        setError('Insufficient credits for search. Please purchase more.');
-        setState('idle');
-        return;
-      }
-
-      // Deduct 0.5 credit for the search
-      const creditDeducted = await deductCredit(0.5);
-      if (!creditDeducted) {
-        setError('Failed to process credit. Please try again.');
-        setState('idle');
-        return;
-      }
-
-      // Search for the specific business
+      // Search for the specific business (free - no credit cost)
       const response = await fetch('/api/search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -305,19 +283,9 @@ export function BusinessLookupModal({ isOpen, onClose, isPremium, onUpgradeClick
                 </div>
               )}
 
-              {/* Search credit cost indicator */}
-              {user && (
-                <div className="flex items-center justify-between px-3 py-2 bg-zinc-800/50 rounded-lg text-xs">
-                  <span className="text-zinc-500">Search cost</span>
-                  <span className="text-zinc-300">
-                    0.5 credits <span className="text-zinc-500">({credits} available)</span>
-                  </span>
-                </div>
-              )}
-
               <button
                 onClick={handleSearch}
-                disabled={!businessName.trim() || !location.trim() || state === 'searching' || (!!user && credits < 0.5)}
+                disabled={!businessName.trim() || !location.trim() || state === 'searching'}
                 className="w-full py-3 bg-violet-600 hover:bg-violet-500 disabled:bg-zinc-700 disabled:text-zinc-500 text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
               >
                 {state === 'searching' ? (
