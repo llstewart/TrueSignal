@@ -4,26 +4,38 @@ import { useState } from 'react';
 import { Business, EnrichedBusiness, isEnrichedBusiness } from '@/lib/types';
 import { StatusTag } from './StatusTag';
 import { calculateSeoNeedScore, getSeoNeedSummary } from '@/lib/signals';
+import { useUser } from '@/hooks/useUser';
 
 interface BusinessLookupModalProps {
   isOpen: boolean;
   onClose: () => void;
   isPremium: boolean;
   onUpgradeClick: () => void;
+  onSaved?: () => void; // Callback when business is saved
 }
 
 type LookupState = 'idle' | 'searching' | 'found' | 'analyzing' | 'complete' | 'not-found' | 'error';
 
-export function BusinessLookupModal({ isOpen, onClose, isPremium, onUpgradeClick }: BusinessLookupModalProps) {
+export function BusinessLookupModal({ isOpen, onClose, isPremium, onUpgradeClick, onSaved }: BusinessLookupModalProps) {
   const [businessName, setBusinessName] = useState('');
   const [location, setLocation] = useState('');
   const [state, setState] = useState<LookupState>('idle');
   const [foundBusiness, setFoundBusiness] = useState<Business | null>(null);
   const [enrichedBusiness, setEnrichedBusiness] = useState<EnrichedBusiness | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isSaved, setIsSaved] = useState(false);
+
+  const { deductCredit, getCredits, user, credits } = useUser();
 
   const handleSearch = async () => {
     if (!businessName.trim() || !location.trim()) return;
+
+    // Require user to be logged in
+    if (!user) {
+      setError('Please sign in to search for businesses.');
+      return;
+    }
 
     setState('searching');
     setError(null);
@@ -31,6 +43,22 @@ export function BusinessLookupModal({ isOpen, onClose, isPremium, onUpgradeClick
     setEnrichedBusiness(null);
 
     try {
+      // Check if user has credits for search (0.5 credits)
+      const currentCredits = await getCredits();
+      if (currentCredits < 0.5) {
+        setError('Insufficient credits for search. Please purchase more.');
+        setState('idle');
+        return;
+      }
+
+      // Deduct 0.5 credit for the search
+      const creditDeducted = await deductCredit(0.5);
+      if (!creditDeducted) {
+        setError('Failed to process credit. Please try again.');
+        setState('idle');
+        return;
+      }
+
       // Search for the specific business
       const response = await fetch('/api/search', {
         method: 'POST',
@@ -77,6 +105,22 @@ export function BusinessLookupModal({ isOpen, onClose, isPremium, onUpgradeClick
     setError(null);
 
     try {
+      // Check if user has credits
+      const currentCredits = await getCredits();
+      if (currentCredits < 1) {
+        setError('Insufficient credits. Please purchase more.');
+        setState('found');
+        return;
+      }
+
+      // Deduct credit before analysis
+      const creditDeducted = await deductCredit(1);
+      if (!creditDeducted) {
+        setError('Failed to process credit. Please try again.');
+        setState('found');
+        return;
+      }
+
       const response = await fetch('/api/analyze-single', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -105,10 +149,42 @@ export function BusinessLookupModal({ isOpen, onClose, isPremium, onUpgradeClick
       const data = await response.json();
       setEnrichedBusiness(data.business);
       setState('complete');
+      setIsSaved(false); // Reset save state for new analysis
     } catch (err) {
       console.error('Analysis error:', err);
       setError('Failed to analyze. Please try again.');
       setState('found');
+    }
+  };
+
+  const handleSave = async () => {
+    if (!enrichedBusiness || !user) return;
+
+    setIsSaving(true);
+    setError(null);
+
+    try {
+      const response = await fetch('/api/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          niche: businessName.trim(),
+          location: location.trim(),
+          businesses: [enrichedBusiness],
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to save');
+      }
+
+      setIsSaved(true);
+      onSaved?.();
+    } catch (err) {
+      console.error('Save error:', err);
+      setError('Failed to save. Please try again.');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -127,6 +203,7 @@ export function BusinessLookupModal({ isOpen, onClose, isPremium, onUpgradeClick
     setFoundBusiness(null);
     setEnrichedBusiness(null);
     setError(null);
+    setIsSaved(false);
   };
 
   if (!isOpen) return null;
@@ -228,9 +305,19 @@ export function BusinessLookupModal({ isOpen, onClose, isPremium, onUpgradeClick
                 </div>
               )}
 
+              {/* Search credit cost indicator */}
+              {user && (
+                <div className="flex items-center justify-between px-3 py-2 bg-zinc-800/50 rounded-lg text-xs">
+                  <span className="text-zinc-500">Search cost</span>
+                  <span className="text-zinc-300">
+                    0.5 credits <span className="text-zinc-500">({credits} available)</span>
+                  </span>
+                </div>
+              )}
+
               <button
                 onClick={handleSearch}
-                disabled={!businessName.trim() || !location.trim() || state === 'searching'}
+                disabled={!businessName.trim() || !location.trim() || state === 'searching' || (!!user && credits < 0.5)}
                 className="w-full py-3 bg-violet-600 hover:bg-violet-500 disabled:bg-zinc-700 disabled:text-zinc-500 text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
               >
                 {state === 'searching' ? (
@@ -290,6 +377,16 @@ export function BusinessLookupModal({ isOpen, onClose, isPremium, onUpgradeClick
                 </div>
               )}
 
+              {/* Credit cost indicator */}
+              {isPremium && (
+                <div className="flex items-center justify-between px-3 py-2 bg-zinc-800/50 rounded-lg text-xs">
+                  <span className="text-zinc-500">Lead Intel cost</span>
+                  <span className="text-zinc-300">
+                    1 credit <span className="text-zinc-500">({credits} available)</span>
+                  </span>
+                </div>
+              )}
+
               <div className="flex gap-3">
                 <button
                   onClick={handleReset}
@@ -300,7 +397,7 @@ export function BusinessLookupModal({ isOpen, onClose, isPremium, onUpgradeClick
                 {isPremium ? (
                   <button
                     onClick={handleGetIntel}
-                    disabled={state === 'analyzing'}
+                    disabled={state === 'analyzing' || credits < 1}
                     className="flex-1 py-3 bg-violet-600 hover:bg-violet-500 disabled:bg-violet-600/50 text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
                   >
                     {state === 'analyzing' ? (
@@ -438,12 +535,49 @@ export function BusinessLookupModal({ isOpen, onClose, isPremium, onUpgradeClick
                 )}
               </div>
 
-              <button
-                onClick={handleReset}
-                className="w-full py-3 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium rounded-lg transition-colors"
-              >
-                Look Up Another Business
-              </button>
+              <div className="flex gap-3">
+                <button
+                  onClick={handleReset}
+                  className="flex-1 py-3 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium rounded-lg transition-colors"
+                >
+                  Look Up Another
+                </button>
+                {user && (
+                  <button
+                    onClick={handleSave}
+                    disabled={isSaving || isSaved}
+                    className={`flex-1 py-3 font-medium rounded-lg transition-colors flex items-center justify-center gap-2 ${
+                      isSaved
+                        ? 'bg-emerald-600/20 text-emerald-400 border border-emerald-500/30'
+                        : 'bg-violet-600 hover:bg-violet-500 disabled:bg-violet-600/50 text-white'
+                    }`}
+                  >
+                    {isSaved ? (
+                      <>
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        Saved
+                      </>
+                    ) : isSaving ? (
+                      <>
+                        <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                        </svg>
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                        </svg>
+                        Save to History
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
             </div>
           )}
         </div>

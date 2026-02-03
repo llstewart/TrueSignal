@@ -919,6 +919,7 @@ function HomeContent() {
             setShowLookupModal(false);
             setShowBillingModal(true);
           }}
+          onSaved={fetchSavedCount}
         />
 
         {/* Toast Notification */}
@@ -1367,6 +1368,7 @@ function HomeContent() {
           setShowLookupModal(false);
           setShowBillingModal(true);
         }}
+        onSaved={fetchSavedCount}
       />
 
       {/* Toast Notification */}
