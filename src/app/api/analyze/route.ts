@@ -17,14 +17,15 @@ const BATCH_DELAY_MS = 500;
 // Semaphore for website analysis
 const websiteAnalysisSemaphore = new Semaphore(WEBSITE_ANALYSIS_CONCURRENCY);
 
-function calculateDaysDormant(lastOwnerActivity: Date | null): number | null {
-  if (!lastOwnerActivity) {
-    return null;
-  }
+function calculateDaysDormant(lastOwnerActivity: Date | string | null): number | null {
+  if (!lastOwnerActivity) return null;
+  const dateObj = typeof lastOwnerActivity === 'string'
+    ? new Date(lastOwnerActivity)
+    : lastOwnerActivity;
+  if (isNaN(dateObj.getTime())) return null;
   const now = new Date();
-  const diffTime = now.getTime() - lastOwnerActivity.getTime();
-  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-  return diffDays;
+  const diffTime = now.getTime() - dateObj.getTime();
+  return Math.floor(diffTime / (1000 * 60 * 60 * 24));
 }
 
 export async function POST(request: NextRequest) {

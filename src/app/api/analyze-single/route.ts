@@ -22,10 +22,14 @@ interface WebsiteAnalysisResult {
   techStack: string;
 }
 
-function calculateDaysDormant(lastOwnerActivity: Date | null): number | null {
+function calculateDaysDormant(lastOwnerActivity: Date | string | null): number | null {
   if (!lastOwnerActivity) return null;
+  const dateObj = typeof lastOwnerActivity === 'string'
+    ? new Date(lastOwnerActivity)
+    : lastOwnerActivity;
+  if (isNaN(dateObj.getTime())) return null;
   const now = new Date();
-  const diffTime = now.getTime() - lastOwnerActivity.getTime();
+  const diffTime = now.getTime() - dateObj.getTime();
   return Math.floor(diffTime / (1000 * 60 * 60 * 24));
 }
 
