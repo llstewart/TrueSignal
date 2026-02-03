@@ -102,6 +102,7 @@ function HomeContent() {
 
   const searchControllerRef = useRef<AbortController | null>(null);
   const analyzeControllerRef = useRef<AbortController | null>(null);
+  const analyzeWorkerRef = useRef<Worker | null>(null);
 
   // Handle checkout success/cancel from Stripe redirect
   useEffect(() => {
@@ -344,6 +345,31 @@ function HomeContent() {
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [isAnalyzing]);
 
+  // Warn user when switching tabs during analysis (browsers throttle background tabs)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden && isAnalyzing) {
+        // Show a toast or notification when user returns
+        setToastMessage('Analysis is running in the background. For best results, keep this tab open.');
+        // Auto-hide after 5 seconds
+        setTimeout(() => setToastMessage(null), 5000);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [isAnalyzing]);
+
+  // Cleanup worker on unmount
+  useEffect(() => {
+    return () => {
+      if (analyzeWorkerRef.current) {
+        analyzeWorkerRef.current.terminate();
+        analyzeWorkerRef.current = null;
+      }
+    };
+  }, []);
+
   const handleSearchFromUrl = async (niche: string, location: string) => {
     // Require sign-in for all searches
     if (!user) {
@@ -547,10 +573,32 @@ function HomeContent() {
       return;
     }
 
-    // Calculate credits needed
-    const businessesToAnalyze = selectedBusinesses.size > 0
+    // Get selected businesses
+    const selectedList = selectedBusinesses.size > 0
       ? Array.from(selectedBusinesses).map(i => businesses[i])
       : businesses;
+
+    // Filter out businesses that are ALREADY analyzed (prevent duplicate charges)
+    const alreadyAnalyzedIds = new Set(
+      tableBusinesses
+        .filter((b): b is EnrichedBusiness => !isPendingBusiness(b) && isEnrichedBusiness(b))
+        .map(b => b.placeId || b.name)
+    );
+    const businessesToAnalyze = selectedList.filter(b => !alreadyAnalyzedIds.has(b.placeId || b.name));
+
+    // Check if all selected businesses are already analyzed
+    if (businessesToAnalyze.length === 0) {
+      setError('All selected businesses have already been analyzed. Select different businesses or view your existing results in the Lead Intel tab.');
+      setActiveTab('upgraded');
+      return;
+    }
+
+    // Notify user if some were skipped
+    const skippedCount = selectedList.length - businessesToAnalyze.length;
+    if (skippedCount > 0) {
+      console.log(`Skipping ${skippedCount} already-analyzed businesses`);
+    }
+
     const creditsNeeded = businessesToAnalyze.length;
 
     // Get fresh credits from database (not stale React state)
@@ -569,27 +617,25 @@ function HomeContent() {
       }
     }
 
-    // Track successful analyses - credits deducted only on success
-    let successfulAnalyses = 0;
-
-    if (analyzeControllerRef.current) analyzeControllerRef.current.abort();
-    const controller = new AbortController();
-    analyzeControllerRef.current = controller;
+    // Terminate any existing worker
+    if (analyzeWorkerRef.current) {
+      analyzeWorkerRef.current.terminate();
+      analyzeWorkerRef.current = null;
+    }
 
     setIsAnalyzing(true);
     setError(null);
-    setWasAnalysisInterrupted(false); // Clear interrupted flag on new analysis
+    setWasAnalysisInterrupted(false);
 
     const pendingBusinesses: PendingBusiness[] = businessesToAnalyze.map(b => ({
       ...b,
       isEnriching: true as const,
     }));
 
-    // Merge with existing analyzed businesses (keep previously analyzed, add new pending)
+    // Merge with existing analyzed businesses
     setTableBusinesses(prev => {
       const existingAnalyzed = prev.filter(b => !isPendingBusiness(b));
       const existingIds = new Set(existingAnalyzed.map(b => b.placeId || b.name));
-      // Only add pending businesses that aren't already analyzed
       const newPending = pendingBusinesses.filter(b => !existingIds.has(b.placeId || b.name));
       return [...existingAnalyzed, ...newPending];
     });
@@ -599,149 +645,27 @@ function HomeContent() {
 
     const endpoint = selectedBusinesses.size > 0 ? '/api/analyze-selected' : '/api/analyze-stream';
 
-    try {
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          businesses: businessesToAnalyze,
-          niche: searchParams.niche,
-          location: searchParams.location,
-        }),
-        signal: controller.signal,
-      });
+    // Track successful analyses for deduct-on-success
+    let successfulAnalyses = 0;
 
-      if (!response.ok) {
-        // Handle auth and billing errors
-        try {
-          const errorData = await response.json();
-          if (errorData.requiresAuth) {
-            setIsAnalyzing(false);
-            setError('Please sign in to unlock Lead Intel');
-            setAuthMode('signin');
-            setShowAuthModal(true);
-            return;
-          }
-          if (errorData.requiresUpgrade) {
-            setIsAnalyzing(false);
-            setError('Upgrade to unlock Lead Intel features');
-            setShowBillingModal(true);
-            return;
-          }
-          if (errorData.insufficientCredits) {
-            setIsAnalyzing(false);
-            setError(`Insufficient credits. You have ${errorData.creditsRemaining} but need ${errorData.creditsRequired}.`);
-            setShowBillingModal(true);
-            return;
-          }
-          throw new Error(errorData.error || 'Analysis failed');
-        } catch (parseError) {
-          throw new Error('Analysis failed');
-        }
-      }
+    // Create Web Worker for background processing (survives tab switches better)
+    const worker = new Worker('/workers/analyze-worker.js');
+    analyzeWorkerRef.current = worker;
 
-      const reader = response.body?.getReader();
-      if (!reader) throw new Error('No response body');
-
-      const decoder = new TextDecoder();
-      let buffer = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n\n');
-        buffer = lines.pop() || '';
-
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            try {
-              const data = JSON.parse(line.slice(6));
-
-              if (data.type === 'status') {
-                setAnalyzeProgress(prev => ({
-                  completed: prev?.completed || 0,
-                  total: prev?.total || businesses.length,
-                  phase: data.phase,
-                  totalPhases: data.totalPhases,
-                  message: data.message,
-                  isBackground: data.isBackground || false,
-                  firstPageComplete: prev?.firstPageComplete || false,
-                }));
-              } else if (data.type === 'progress') {
-                setAnalyzeProgress(prev => ({
-                  completed: data.completed,
-                  total: data.total,
-                  phase: data.phase || prev?.phase,
-                  totalPhases: prev?.totalPhases || 3,
-                  message: data.message,
-                  isBackground: data.isBackground || prev?.isBackground || false,
-                  firstPageComplete: prev?.firstPageComplete || false,
-                }));
-              } else if (data.type === 'first_page_complete') {
-                setAnalyzeProgress(prev => ({
-                  completed: data.count,
-                  total: data.total,
-                  phase: 3,
-                  totalPhases: 3,
-                  message: data.message,
-                  isBackground: data.hasMore,
-                  firstPageComplete: true,
-                }));
-              } else if (data.type === 'business') {
-                const enrichedBusiness: EnrichedBusiness = {
-                  ...data.business,
-                  isEnriching: false,
-                };
-                setTableBusinesses(prev => {
-                  const idx = prev.findIndex(b => b.name === enrichedBusiness.name);
-                  if (idx !== -1) {
-                    const updated = [...prev];
-                    updated[idx] = enrichedBusiness;
-                    return updated;
-                  }
-                  return [...prev, enrichedBusiness];
-                });
-                // Track successful analysis for deduct-on-success
-                successfulAnalyses++;
-                setAnalyzeProgress(prev => ({
-                  completed: data.progress.completed,
-                  total: data.progress.total,
-                  phase: 3,
-                  totalPhases: 3,
-                  message: `Analyzing ${data.progress.completed}/${data.progress.total}`,
-                  isBackground: prev?.isBackground || false,
-                  firstPageComplete: prev?.firstPageComplete || false,
-                }));
-              } else if (data.type === 'error') {
-                setError(data.message);
-              } else if (data.type === 'complete') {
-                setAnalyzeProgress(null);
-              }
-            } catch (e) {
-              console.error('Failed to parse SSE data:', e);
-            }
-          }
-        }
-      }
-    } catch (err) {
-      if (err instanceof Error && err.name === 'AbortError') return;
-      setError(err instanceof Error ? err.message : 'An unexpected error occurred');
-    } finally {
+    // Handle completion/cleanup
+    const cleanup = async (deductCredits: boolean = true) => {
       setIsAnalyzing(false);
       setAnalyzeProgress(null);
 
-      // Deduct credits only for successful analyses (better UX - don't charge for failures)
-      if (successfulAnalyses > 0) {
+      if (deductCredits && successfulAnalyses > 0) {
         const creditDeducted = await deductCredit(successfulAnalyses);
         if (!creditDeducted) {
           console.error(`Failed to deduct ${successfulAnalyses} credits after successful analysis`);
         }
-        refreshUser(); // Update credit display
+        refreshUser();
       }
 
-      // Save only actually enriched businesses to session (not pending, not raw)
+      // Save enriched businesses to session
       setTableBusinesses(current => {
         const enrichedOnly = current.filter((b): b is EnrichedBusiness =>
           !isPendingBusiness(b) && isEnrichedBusiness(b)
@@ -751,7 +675,143 @@ function HomeContent() {
         }
         return current;
       });
-    }
+
+      // Clean up worker
+      if (analyzeWorkerRef.current) {
+        analyzeWorkerRef.current.terminate();
+        analyzeWorkerRef.current = null;
+      }
+    };
+
+    // Handle messages from worker
+    worker.onmessage = async (e: MessageEvent) => {
+      const { type, payload } = e.data;
+
+      switch (type) {
+        case 'STARTED':
+          setAnalyzeProgress(prev => ({
+            ...prev,
+            completed: 0,
+            total: payload.total,
+            phase: 1,
+            totalPhases: 3,
+            message: 'Starting analysis...',
+          }));
+          break;
+
+        case 'STATUS':
+          setAnalyzeProgress(prev => ({
+            completed: prev?.completed || 0,
+            total: prev?.total || businessesToAnalyze.length,
+            phase: payload.phase,
+            totalPhases: payload.totalPhases,
+            message: payload.message,
+            isBackground: payload.isBackground || false,
+            firstPageComplete: prev?.firstPageComplete || false,
+          }));
+          break;
+
+        case 'PROGRESS':
+          setAnalyzeProgress(prev => ({
+            completed: payload.completed,
+            total: payload.total,
+            phase: payload.phase || prev?.phase || 2,
+            totalPhases: 3,
+            message: payload.message,
+            isBackground: payload.hasMore || prev?.isBackground || false,
+            firstPageComplete: prev?.firstPageComplete || false,
+          }));
+          break;
+
+        case 'FIRST_PAGE_COMPLETE':
+          setAnalyzeProgress({
+            completed: payload.completed,
+            total: payload.total,
+            phase: 3,
+            totalPhases: 3,
+            message: payload.message,
+            isBackground: payload.hasMore,
+            firstPageComplete: true,
+          });
+          break;
+
+        case 'BUSINESS_COMPLETE':
+          const enrichedBusiness: EnrichedBusiness = {
+            ...payload.business,
+            isEnriching: false,
+          };
+          setTableBusinesses(prev => {
+            const idx = prev.findIndex(b => b.name === enrichedBusiness.name);
+            if (idx !== -1) {
+              const updated = [...prev];
+              updated[idx] = enrichedBusiness;
+              return updated;
+            }
+            return [...prev, enrichedBusiness];
+          });
+          successfulAnalyses++;
+          setAnalyzeProgress(prev => ({
+            completed: payload.progress.completed,
+            total: payload.progress.total,
+            phase: 3,
+            totalPhases: 3,
+            message: `Analyzing ${payload.progress.completed}/${payload.progress.total}`,
+            isBackground: prev?.isBackground || false,
+            firstPageComplete: prev?.firstPageComplete || false,
+          }));
+          break;
+
+        case 'STREAM_ERROR':
+          setError(payload.message);
+          break;
+
+        case 'ERROR':
+          // Handle auth/billing errors from server
+          if (payload.requiresAuth) {
+            setError('Please sign in to unlock Lead Intel');
+            setAuthMode('signin');
+            setShowAuthModal(true);
+            await cleanup(false);
+            return;
+          }
+          if (payload.requiresUpgrade) {
+            setError('Upgrade to unlock Lead Intel features');
+            setShowBillingModal(true);
+            await cleanup(false);
+            return;
+          }
+          if (payload.insufficientCredits) {
+            setError(`Insufficient credits. You have ${payload.creditsRemaining} but need ${payload.creditsRequired}.`);
+            setShowBillingModal(true);
+            await cleanup(false);
+            return;
+          }
+          setError(payload.error || 'Analysis failed');
+          await cleanup(true); // Still charge for any successful analyses
+          break;
+
+        case 'COMPLETE':
+          await cleanup(true);
+          break;
+      }
+    };
+
+    worker.onerror = async (error) => {
+      console.error('Worker error:', error);
+      setError('Analysis failed due to a technical error. Please try again.');
+      await cleanup(true);
+    };
+
+    // Start the worker
+    worker.postMessage({
+      type: 'START_ANALYSIS',
+      payload: {
+        endpoint,
+        businesses: businessesToAnalyze,
+        niche: searchParams.niche,
+        location: searchParams.location,
+      },
+    });
   };
 
   // ============================================
