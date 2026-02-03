@@ -94,6 +94,7 @@ function HomeContent() {
   const [isSessionConnected, setIsSessionConnected] = useState(false);
   const [isLoadingSaved, setIsLoadingSaved] = useState(false);
   const [wasAnalysisInterrupted, setWasAnalysisInterrupted] = useState(false);
+  const [isViewingSavedSearch, setIsViewingSavedSearch] = useState(false);
 
   // Library state
   const [savedSearchesList, setSavedSearchesList] = useState<{
@@ -545,13 +546,24 @@ function HomeContent() {
     }
 
     // Get fresh credits from database (not stale React state)
-    let currentCredits = await getCredits();
+    let currentCredits: number;
+    try {
+      currentCredits = await getCredits();
+    } catch (err) {
+      console.error('[Search] Error fetching credits:', err);
+      setError('Unable to verify credits. Please refresh the page and try again.');
+      return;
+    }
 
     // Check if user has credits (1 credit per search)
     if (currentCredits < 1) {
       // Refresh and re-check in case credits were just added
-      await refreshUser();
-      currentCredits = await getCredits();
+      try {
+        await refreshUser();
+        currentCredits = await getCredits();
+      } catch (err) {
+        console.error('[Search] Error refreshing user:', err);
+      }
 
       if (currentCredits < 1) {
         setError('You need 1 credit to search. Purchase more credits to continue.');
@@ -570,6 +582,7 @@ function HomeContent() {
     setIsAnalyzing(false);
     setError(null);
     setSearchParams({ niche, location });
+    setIsViewingSavedSearch(false); // Fresh search, not viewing saved
 
     try {
       const response = await fetch('/api/search', {
@@ -611,7 +624,21 @@ function HomeContent() {
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') return;
 
-      const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred';
+      console.error('[Search] Error:', err);
+
+      let errorMessage = 'An unexpected error occurred';
+      if (err instanceof Error) {
+        errorMessage = err.message;
+        // Add more context for common network errors
+        if (err.message === 'Failed to fetch' || err.message.includes('fetch')) {
+          errorMessage = 'Network error: Unable to reach the server. Please check your internet connection and try again.';
+          console.error('[Search] Network error details:', {
+            name: err.name,
+            message: err.message,
+            stack: err.stack,
+          });
+        }
+      }
 
       // Check if error message looks like a rate limit message
       if (errorMessage.includes('too many') || errorMessage.includes('wait')) {
@@ -657,6 +684,7 @@ function HomeContent() {
   const handleLoadFromHistory = async (niche: string, location: string) => {
     setSearchParams({ niche, location });
     setActiveTab('upgraded');
+    setIsViewingSavedSearch(true); // Mark as viewing saved search
     // Search will be triggered by URL params, and saved analyses will load via useEffect
     router.replace(`?niche=${encodeURIComponent(niche)}&location=${encodeURIComponent(location)}&tab=upgraded`);
     // Trigger a fresh search to populate the general list
@@ -1249,6 +1277,16 @@ function HomeContent() {
     </div>
   ) : null;
 
+  // Handler to clear results and start new search
+  const handleNewSearch = () => {
+    setBusinesses([]);
+    setTableBusinesses([]);
+    setSearchParams(null);
+    setIsViewingSavedSearch(false);
+    setError(null);
+    router.replace('/');
+  };
+
   // Search Tab content
   const searchTabContent = (
     <>
@@ -1263,8 +1301,12 @@ function HomeContent() {
           recentSearches={recentSearches}
           onRecentSearchClick={(search) => handleLoadFromHistory(search.niche, search.location)}
           onLookupClick={() => setShowLookupModal(true)}
+          onNewSearch={handleNewSearch}
           hasResults={hasResults}
           credits={credits}
+          isViewingSavedSearch={isViewingSavedSearch}
+          savedSearchNiche={searchParams?.niche}
+          savedSearchLocation={searchParams?.location}
         />
       )}
       {/* Error in hero state */}

@@ -13,7 +13,9 @@
       "Bash(pkill:*)",
       "Bash(git mv:*)",
       "Bash(npm install:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)"
     ]
   }
 }

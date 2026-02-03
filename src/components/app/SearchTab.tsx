@@ -22,9 +22,14 @@ interface SearchTabProps {
   // Callbacks
   onRecentSearchClick?: (search: RecentSearch) => void;
   onLookupClick?: () => void;
+  onNewSearch?: () => void;
   // State
   hasResults?: boolean;
   credits: number;
+  // When viewing a saved search from Library
+  isViewingSavedSearch?: boolean;
+  savedSearchNiche?: string;
+  savedSearchLocation?: string;
 }
 
 export function SearchTab({
@@ -33,19 +38,52 @@ export function SearchTab({
   recentSearches = [],
   onRecentSearchClick,
   onLookupClick,
+  onNewSearch,
   hasResults = false,
   credits,
+  isViewingSavedSearch = false,
+  savedSearchNiche,
+  savedSearchLocation,
 }: SearchTabProps) {
   // If we have results, show the results view
   if (hasResults && results) {
     return (
       <div className="min-h-full">
-        {/* Compact header with search */}
+        {/* Header - different for saved search vs active search */}
         <div className="sticky top-0 z-40 bg-[#0f0f10]/80 backdrop-blur-xl border-b border-zinc-800/50">
           <div className="max-w-[1400px] mx-auto px-4 py-3">
-            <div className="flex items-center gap-4">
-              {searchForm}
-            </div>
+            {isViewingSavedSearch ? (
+              // Saved search header - shows what search we're viewing
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="flex items-center gap-2 px-3 py-1.5 bg-violet-500/10 rounded-lg">
+                    <svg className="w-4 h-4 text-violet-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                    </svg>
+                    <span className="text-xs font-medium text-violet-400 uppercase tracking-wide">Saved Search</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-zinc-300 truncate">
+                    <span className="font-medium text-white truncate">{savedSearchNiche}</span>
+                    <span className="text-zinc-500">in</span>
+                    <span className="truncate">{savedSearchLocation}</span>
+                  </div>
+                </div>
+                <button
+                  onClick={onNewSearch}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-violet-600 hover:bg-violet-500 rounded-lg transition-colors flex-shrink-0"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                  <span className="hidden sm:inline">New Search</span>
+                </button>
+              </div>
+            ) : (
+              // Active search header - shows the search form
+              <div className="flex items-center gap-4">
+                {searchForm}
+              </div>
+            )}
           </div>
         </div>
 
