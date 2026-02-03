@@ -99,6 +99,7 @@ function HomeContent() {
 
   // Toast message for checkout success
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [rateLimitCountdown, setRateLimitCountdown] = useState<number | null>(null);
 
   const searchControllerRef = useRef<AbortController | null>(null);
   const analyzeControllerRef = useRef<AbortController | null>(null);
@@ -150,6 +151,26 @@ function HomeContent() {
       setTimeout(() => setToastMessage(null), 3000);
     }
   }, [urlSearchParams, refreshUser, router, getCredits]);
+
+  // Rate limit countdown timer
+  useEffect(() => {
+    if (rateLimitCountdown === null || rateLimitCountdown <= 0) {
+      if (rateLimitCountdown === 0) {
+        setRateLimitCountdown(null);
+        setToastMessage(null);
+      }
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      setRateLimitCountdown(prev => (prev !== null ? prev - 1 : null));
+    }, 1000);
+
+    // Update toast message with countdown
+    setToastMessage(`Rate limited. Please wait ${rateLimitCountdown} seconds...`);
+
+    return () => clearTimeout(timer);
+  }, [rateLimitCountdown]);
 
   // Fetch saved searches count - only for logged-in users
   const fetchSavedCount = useCallback(async () => {
@@ -413,10 +434,20 @@ function HomeContent() {
         body: JSON.stringify({ niche, location }),
         signal: controller.signal,
       });
+
       if (!response.ok) {
         const data = await response.json();
+
+        // Handle rate limit specifically with toast + countdown
+        if (response.status === 429 && data.retryAfter) {
+          setRateLimitCountdown(data.retryAfter);
+          setIsSearching(false);
+          return;
+        }
+
         throw new Error(data.error || 'Search failed');
       }
+
       const data = await response.json();
       setBusinesses(data.businesses);
       setIsCached(data.cached || false);
@@ -426,15 +457,25 @@ function HomeContent() {
         const creditDeducted = await deductCredit(1);
         if (!creditDeducted) {
           console.error('Failed to deduct credit after successful search');
-          // Don't show error to user - they got their results, we'll handle billing separately
         }
-        // Refresh to update credit display
         refreshUser();
       }
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') return;
-      setError(err instanceof Error ? err.message : 'An unexpected error occurred');
-      // No credits deducted on failure - better UX
+
+      const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred';
+
+      // Check if error message looks like a rate limit message
+      if (errorMessage.includes('too many') || errorMessage.includes('wait')) {
+        const match = errorMessage.match(/wait\s+(\d+)\s+seconds/i);
+        if (match) {
+          setRateLimitCountdown(parseInt(match[1], 10));
+          setIsSearching(false);
+          return;
+        }
+      }
+
+      setError(errorMessage);
     } finally {
       setIsSearching(false);
     }
@@ -473,11 +514,7 @@ function HomeContent() {
     setIsSearching(true);
     setIsAnalyzing(false);
     setError(null);
-    setBusinesses([]);
-    setTableBusinesses([]);
-    setSelectedBusinesses(new Set());
     setSearchParams({ niche, location });
-    setIsCached(false);
 
     try {
       const response = await fetch('/api/search', {
@@ -486,12 +523,25 @@ function HomeContent() {
         body: JSON.stringify({ niche, location }),
         signal: controller.signal,
       });
+
       if (!response.ok) {
         const data = await response.json();
+
+        // Handle rate limit specifically with toast + countdown
+        if (response.status === 429 && data.retryAfter) {
+          setRateLimitCountdown(data.retryAfter);
+          return; // Don't clear existing results or show inline error
+        }
+
         throw new Error(data.error || 'Search failed');
       }
+
       const data = await response.json();
+
+      // Only clear and update on SUCCESS
       setBusinesses(data.businesses);
+      setTableBusinesses([]);
+      setSelectedBusinesses(new Set());
       setIsCached(data.cached || false);
       setActiveTab('general');
 
@@ -505,7 +555,20 @@ function HomeContent() {
       }
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') return;
-      setError(err instanceof Error ? err.message : 'An unexpected error occurred');
+
+      const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred';
+
+      // Check if error message looks like a rate limit message
+      if (errorMessage.includes('too many') || errorMessage.includes('wait')) {
+        // Extract seconds from message like "Please wait 29 seconds"
+        const match = errorMessage.match(/wait\s+(\d+)\s+seconds/i);
+        if (match) {
+          setRateLimitCountdown(parseInt(match[1], 10));
+          return; // Don't show inline error for rate limits
+        }
+      }
+
+      setError(errorMessage);
       // No credits deducted on failure
     } finally {
       setIsSearching(false);
@@ -1052,17 +1115,31 @@ function HomeContent() {
         {/* Toast Notification */}
         {toastMessage && (
           <div className="fixed bottom-4 right-4 z-50 animate-in slide-in-from-bottom-4 fade-in duration-300">
-            <div className="bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 shadow-lg flex items-center gap-3">
-              <div className={`w-2 h-2 rounded-full ${toastMessage.includes('successful') ? 'bg-emerald-500' : 'bg-amber-500'}`} />
-              <span className="text-sm text-zinc-200">{toastMessage}</span>
-              <button
-                onClick={() => setToastMessage(null)}
-                className="text-zinc-400 hover:text-white ml-2"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+            <div className={`rounded-lg px-4 py-3 shadow-lg flex items-center gap-3 ${
+              toastMessage.includes('Rate limited') || toastMessage.includes('wait')
+                ? 'bg-red-500/10 border border-red-500/30'
+                : 'bg-zinc-800 border border-zinc-700'
+            }`}>
+              <div className={`w-2 h-2 rounded-full ${
+                toastMessage.includes('successful') ? 'bg-emerald-500'
+                : toastMessage.includes('Rate limited') || toastMessage.includes('wait') ? 'bg-red-500'
+                : 'bg-amber-500'
+              }`} />
+              <span className={`text-sm ${
+                toastMessage.includes('Rate limited') || toastMessage.includes('wait')
+                  ? 'text-red-300'
+                  : 'text-zinc-200'
+              }`}>{toastMessage}</span>
+              {!rateLimitCountdown && (
+                <button
+                  onClick={() => setToastMessage(null)}
+                  className="text-zinc-400 hover:text-white ml-2"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -1506,17 +1583,31 @@ function HomeContent() {
       {/* Toast Notification */}
       {toastMessage && (
         <div className="fixed bottom-4 right-4 z-50 animate-in slide-in-from-bottom-4 fade-in duration-300">
-          <div className="bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 shadow-lg flex items-center gap-3">
-            <div className={`w-2 h-2 rounded-full ${toastMessage.includes('successful') ? 'bg-emerald-500' : 'bg-amber-500'}`} />
-            <span className="text-sm text-zinc-200">{toastMessage}</span>
-            <button
-              onClick={() => setToastMessage(null)}
-              className="text-zinc-400 hover:text-white ml-2"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
+          <div className={`rounded-lg px-4 py-3 shadow-lg flex items-center gap-3 ${
+            toastMessage.includes('Rate limited') || toastMessage.includes('wait')
+              ? 'bg-red-500/10 border border-red-500/30'
+              : 'bg-zinc-800 border border-zinc-700'
+          }`}>
+            <div className={`w-2 h-2 rounded-full ${
+              toastMessage.includes('successful') ? 'bg-emerald-500'
+              : toastMessage.includes('Rate limited') || toastMessage.includes('wait') ? 'bg-red-500'
+              : 'bg-amber-500'
+            }`} />
+            <span className={`text-sm ${
+              toastMessage.includes('Rate limited') || toastMessage.includes('wait')
+                ? 'text-red-300'
+                : 'text-zinc-200'
+            }`}>{toastMessage}</span>
+            {!rateLimitCountdown && (
+              <button
+                onClick={() => setToastMessage(null)}
+                className="text-zinc-400 hover:text-white ml-2"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
           </div>
         </div>
       )}
