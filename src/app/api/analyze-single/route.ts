@@ -89,15 +89,15 @@ export async function POST(request: NextRequest) {
 
     // Run all enrichment in parallel
     const [visibilityResult, reviewData, websiteAnalysis] = await Promise.all([
-      // Check visibility (with cache)
-      (async () => {
+      // Check visibility (with cache) - returns rank position or null
+      (async (): Promise<number | null> => {
         const cacheKey = Cache.visibilityKey(niche, location);
         // Use Record instead of Map (Maps don't serialize properly to JSON)
-        const cachedVisibility = await cache.get<Record<string, boolean>>(cacheKey);
+        const cachedVisibility = await cache.get<Record<string, number | null>>(cacheKey);
 
         if (cachedVisibility && business.name in cachedVisibility) {
           console.log(`[Analyze Single] Visibility cache HIT for ${business.name}`);
-          return cachedVisibility[business.name] || false;
+          return cachedVisibility[business.name] ?? null;
         }
 
         console.log(`[Analyze Single] Checking visibility for ${business.name}`);

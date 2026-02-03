@@ -108,7 +108,8 @@ export async function POST(request: NextRequest) {
 
         const visibilityCacheKey = Cache.visibilityKey(niche, location);
         // Use Record instead of Map (Maps don't serialize properly to JSON)
-        let visibilityResults = await cache.get<Record<string, boolean>>(visibilityCacheKey);
+        // Value is rank position (1-based) or null if not ranked
+        let visibilityResults = await cache.get<Record<string, number | null>>(visibilityCacheKey);
 
         if (!visibilityResults) {
           const visibilityMap = await batchCheckVisibility(businesses, niche, location);
@@ -236,7 +237,7 @@ export async function POST(request: NextRequest) {
                 lastReviewDate: reviewData.lastReviewDate,
                 lastOwnerActivity: reviewData.lastOwnerActivity,
                 daysDormant: calculateDaysDormant(reviewData.lastOwnerActivity),
-                searchVisibility: visibilityResults?.[business.name] || false,
+                searchVisibility: visibilityResults?.[business.name] ?? null,
                 responseRate: reviewData.responseRate,
                 locationType: classifyLocationType(business.address),
                 websiteTech: websiteAnalysis.techStack,

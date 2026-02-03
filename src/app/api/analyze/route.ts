@@ -161,7 +161,7 @@ export async function POST(request: NextRequest) {
               };
 
               const locationType = classifyLocationType(business.address);
-              const searchVisibility = visibilityResults.get(business.name) || false;
+              const searchVisibility = visibilityResults.get(business.name) ?? null;
               const daysDormant = calculateDaysDormant(reviewData.lastOwnerActivity);
 
               return {
@@ -195,7 +195,7 @@ export async function POST(request: NextRequest) {
                 lastReviewDate: reviewData.lastReviewDate,
                 lastOwnerActivity: reviewData.lastOwnerActivity,
                 daysDormant: calculateDaysDormant(reviewData.lastOwnerActivity),
-                searchVisibility: visibilityResults.get(business.name) || false,
+                searchVisibility: visibilityResults.get(business.name) ?? null,
                 responseRate: reviewData.responseRate,
                 locationType: classifyLocationType(business.address),
                 websiteTech: 'Analysis Failed',

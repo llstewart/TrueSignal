@@ -450,9 +450,11 @@ export function BusinessLookupModal({ isOpen, onClose, isPremium, onUpgradeClick
                     <p className="text-white font-medium">{enrichedBusiness.responseRate}%</p>
                   </div>
                   <div className="p-3 bg-zinc-900/50 rounded-lg">
-                    <p className="text-zinc-500 text-xs mb-1">Search Visibility</p>
-                    <StatusTag status={enrichedBusiness.searchVisibility ? 'success' : 'error'}>
-                      {enrichedBusiness.searchVisibility ? 'Ranked' : 'Not Ranked'}
+                    <p className="text-zinc-500 text-xs mb-1">Search Rank</p>
+                    <StatusTag status={enrichedBusiness.searchVisibility !== null ? 'success' : 'error'}>
+                      {enrichedBusiness.searchVisibility !== null
+                        ? `#${enrichedBusiness.searchVisibility}`
+                        : 'Not in Top 20'}
                     </StatusTag>
                   </div>
                   <div className="p-3 bg-zinc-900/50 rounded-lg">

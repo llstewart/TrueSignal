@@ -17,7 +17,7 @@ export interface EnrichedBusiness extends Business {
   lastReviewDate: Date | null;
   lastOwnerActivity: Date | null;
   daysDormant: number | null;
-  searchVisibility: boolean;
+  searchVisibility: number | null; // Rank position (1-based) or null if not ranked
   responseRate: number;
   locationType: 'residential' | 'commercial';
   websiteTech: string;
@@ -71,7 +71,7 @@ export interface VisibilityRequest {
 }
 
 export interface VisibilityResponse {
-  ranked: boolean;
+  rank: number | null; // Rank position (1-based) or null if not ranked
 }
 
 export interface OutscraperPlace {

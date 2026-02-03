@@ -302,9 +302,11 @@ export function UpgradedListTable({ businesses, niche, location, isLoadingMore, 
               </span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-muted-foreground">Visibility:</span>
-              <span className={(business as EnrichedBusiness).searchVisibility ? 'text-emerald-500 font-medium' : 'text-rose-500 font-medium'}>
-                {(business as EnrichedBusiness).searchVisibility ? 'Ranked' : 'Not Ranked'}
+              <span className="text-muted-foreground">Search Rank:</span>
+              <span className={(business as EnrichedBusiness).searchVisibility !== null ? 'text-emerald-500 font-medium' : 'text-rose-500 font-medium'}>
+                {(business as EnrichedBusiness).searchVisibility !== null
+                  ? `#${(business as EnrichedBusiness).searchVisibility}`
+                  : 'Not in Top 20'}
               </span>
             </div>
             <div className="flex justify-between items-center">
@@ -868,8 +870,10 @@ export function UpgradedListTable({ businesses, niche, location, isLoadingMore, 
                     {isPending ? <CellSpinner /> : !isEnriched ? (
                       <span className="text-amber-400/70 text-xs">—</span>
                     ) : (
-                      <StatusTag status={(business as EnrichedBusiness).searchVisibility ? 'success' : 'error'}>
-                        {(business as EnrichedBusiness).searchVisibility ? 'Ranked' : 'Not Ranked'}
+                      <StatusTag status={(business as EnrichedBusiness).searchVisibility !== null ? 'success' : 'error'}>
+                        {(business as EnrichedBusiness).searchVisibility !== null
+                          ? `#${(business as EnrichedBusiness).searchVisibility}`
+                          : 'Not Ranked'}
                       </StatusTag>
                     )}
                   </td>

@@ -31,7 +31,7 @@ async function processBatch(
   businesses: Business[],
   startIndex: number,
   reviewResults: Map<string, ReviewData>,
-  visibilityResults: Map<string, boolean>,
+  visibilityResults: Map<string, number | null>,
   controller: ReadableStreamDefaultController,
   encoder: TextEncoder,
   completedCount: { value: number },
@@ -60,7 +60,7 @@ async function processBatch(
         };
 
         const locationType = classifyLocationType(business.address);
-        const searchVisibility = visibilityResults.get(business.name) || false;
+        const searchVisibility = visibilityResults.get(business.name) ?? null;
         const daysDormant = calculateDaysDormant(reviewData.lastOwnerActivity);
 
         const enrichedBusiness: EnrichedBusiness = {
@@ -94,7 +94,7 @@ async function processBatch(
           lastReviewDate: reviewData.lastReviewDate,
           lastOwnerActivity: reviewData.lastOwnerActivity,
           daysDormant: calculateDaysDormant(reviewData.lastOwnerActivity),
-          searchVisibility: visibilityResults.get(business.name) || false,
+          searchVisibility: visibilityResults.get(business.name) ?? null,
           responseRate: reviewData.responseRate,
           locationType: classifyLocationType(business.address),
           websiteTech: 'Analysis Failed',

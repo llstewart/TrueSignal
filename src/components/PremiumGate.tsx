@@ -9,10 +9,11 @@ interface PremiumGateProps {
 }
 
 // Mock data to show users what they'd get - more rows for better preview
+// searchVisibility is now rank position (1-based) or null if not ranked
 const MOCK_BUSINESSES = [
   {
     name: 'Example Plumbing Co.',
-    searchVisibility: false,
+    searchVisibility: null as number | null,
     responseRate: 12,
     daysDormant: 245,
     seoOptimized: false,
@@ -22,7 +23,7 @@ const MOCK_BUSINESSES = [
   },
   {
     name: 'City Pro Services',
-    searchVisibility: false,
+    searchVisibility: null as number | null,
     responseRate: 0,
     daysDormant: 400,
     seoOptimized: false,
@@ -32,7 +33,7 @@ const MOCK_BUSINESSES = [
   },
   {
     name: 'Quick Fix Solutions',
-    searchVisibility: true,
+    searchVisibility: 3 as number | null,
     responseRate: 45,
     daysDormant: 60,
     seoOptimized: false,
@@ -42,7 +43,7 @@ const MOCK_BUSINESSES = [
   },
   {
     name: 'Premier Home Services',
-    searchVisibility: false,
+    searchVisibility: null as number | null,
     responseRate: 8,
     daysDormant: 180,
     seoOptimized: false,
@@ -52,7 +53,7 @@ const MOCK_BUSINESSES = [
   },
   {
     name: 'Budget Repairs LLC',
-    searchVisibility: false,
+    searchVisibility: null as number | null,
     responseRate: 0,
     daysDormant: 365,
     seoOptimized: false,
@@ -62,7 +63,7 @@ const MOCK_BUSINESSES = [
   },
   {
     name: 'Quality First Inc.',
-    searchVisibility: true,
+    searchVisibility: 7 as number | null,
     responseRate: 65,
     daysDormant: 30,
     seoOptimized: true,
@@ -94,8 +95,8 @@ export function PremiumGate({ onUpgradeClick, niche, location }: PremiumGateProp
                 <tr key={index} className="border-b border-border">
                   <td className="py-4 px-4 text-sm font-medium text-foreground">{business.name}</td>
                   <td className="py-4 px-4">
-                    <StatusTag status={business.searchVisibility ? 'success' : 'error'}>
-                      {business.searchVisibility ? 'Ranked' : 'Not Ranked'}
+                    <StatusTag status={business.searchVisibility !== null ? 'success' : 'error'}>
+                      {business.searchVisibility !== null ? `#${business.searchVisibility}` : 'Not Ranked'}
                     </StatusTag>
                   </td>
                   <td className="py-4 px-4 text-sm text-muted-foreground">{business.responseRate}%</td>

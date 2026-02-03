@@ -18,14 +18,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const ranked = await checkSearchVisibility(
+    const rank = await checkSearchVisibility(
       body.businessName,
       body.niche,
       body.location
     );
 
     const response: VisibilityResponse = {
-      ranked,
+      rank,
     };
 
     return NextResponse.json(response);
