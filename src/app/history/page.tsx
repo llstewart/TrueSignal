@@ -467,9 +467,18 @@ export default function HistoryPage() {
 
                                   {/* Search Visibility */}
                                   <td className="px-4 py-3 text-center hidden lg:table-cell">
-                                    <StatusTag status={business.searchVisibility ? 'success' : 'error'}>
-                                      {business.searchVisibility ? 'Ranked' : 'Not Ranked'}
-                                    </StatusTag>
+                                    {business.searchVisibility ? (
+                                      <StatusTag status={
+                                        business.searchVisibility <= 3 ? 'success' :
+                                        business.searchVisibility <= 10 ? 'warning' : 'error'
+                                      }>
+                                        #{business.searchVisibility}
+                                      </StatusTag>
+                                    ) : (
+                                      <StatusTag status="error">
+                                        Not Ranked
+                                      </StatusTag>
+                                    )}
                                   </td>
 
                                   {/* Website Tech */}
