@@ -5,8 +5,9 @@
 
 // Map of internal error patterns to user-friendly messages
 const ERROR_MAPPINGS: Array<{ pattern: RegExp; message: string }> = [
-  // Network/timeout errors
+  // Network/timeout/DNS errors
   { pattern: /timeout|ETIMEDOUT|ECONNRESET|ECONNREFUSED/i, message: 'Service temporarily unavailable. Please try again.' },
+  { pattern: /ENOTFOUND|getaddrinfo|DNS/i, message: 'Service temporarily unavailable. Please try again in a moment.' },
   { pattern: /fetch failed|network error|failed to fetch/i, message: 'Network error. Please check your connection and try again.' },
 
   // Rate limiting

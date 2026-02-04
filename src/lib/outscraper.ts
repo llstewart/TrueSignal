@@ -5,7 +5,15 @@ const OUTSCRAPER_SEARCH_URL = 'https://api.app.outscraper.com/maps/search-v3';
 const OUTSCRAPER_REVIEWS_URL = 'https://api.app.outscraper.com/maps/reviews-v3';
 
 // Rate limiting configuration for Outscraper API
+const SEARCH_API_TIMEOUT_MS = 30000; // 30 seconds for search
 const REVIEWS_API_TIMEOUT_MS = 20000; // 20 seconds (reduced from 45s)
+
+const SEARCH_RETRY_OPTIONS: Partial<RetryOptions> = {
+  maxRetries: 2,
+  baseDelayMs: 1000,
+  maxDelayMs: 3000,
+  jitterMs: 300,
+};
 const REVIEWS_RETRY_OPTIONS: Partial<RetryOptions> = {
   maxRetries: 2,
   baseDelayMs: 1500,
@@ -65,6 +73,53 @@ interface OutscraperReviewsResponse {
   [key: string]: unknown;
 }
 
+/**
+ * Internal function to make a single search API request
+ */
+async function searchGoogleMapsInternal(
+  searchQuery: string,
+  limit: number,
+  apiKey: string
+): Promise<Business[]> {
+  const params = new URLSearchParams({
+    query: searchQuery,
+    limit: limit.toString(),
+    async: 'false',
+  });
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), SEARCH_API_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(`${OUTSCRAPER_SEARCH_URL}?${params}`, {
+      method: 'GET',
+      headers: {
+        'X-API-KEY': apiKey,
+      },
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Outscraper API error: ${response.status} - ${errorText}`);
+    }
+
+    const data = await response.json();
+
+    // Outscraper returns results in a nested array structure
+    const places: OutscraperRawPlace[] = data.data?.[0] || data.data || [];
+
+    console.log(`[Outscraper] Found ${places.length} places`);
+
+    return places.map(parseOutscraperPlace);
+  } catch (error) {
+    clearTimeout(timeoutId);
+    throw error;
+  }
+}
+
 export async function searchGoogleMaps(
   query: string,
   location: string,
@@ -77,35 +132,16 @@ export async function searchGoogleMaps(
   }
 
   const searchQuery = `${query} in ${location}`;
-
-  const params = new URLSearchParams({
-    query: searchQuery,
-    limit: limit.toString(),
-    async: 'false',
-  });
-
   console.log(`[Outscraper] Searching: ${searchQuery}`);
 
-  const response = await fetch(`${OUTSCRAPER_SEARCH_URL}?${params}`, {
-    method: 'GET',
-    headers: {
-      'X-API-KEY': apiKey,
-    },
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Outscraper API error: ${response.status} - ${errorText}`);
-  }
-
-  const data = await response.json();
-
-  // Outscraper returns results in a nested array structure
-  const places: OutscraperRawPlace[] = data.data?.[0] || data.data || [];
-
-  console.log(`[Outscraper] Found ${places.length} places`);
-
-  return places.map(parseOutscraperPlace);
+  // Use retry logic to handle transient network/DNS failures
+  return withRetry(
+    () => searchGoogleMapsInternal(searchQuery, limit, apiKey),
+    SEARCH_RETRY_OPTIONS,
+    (attempt, error, delayMs) => {
+      console.log(`[Outscraper] Search retry ${attempt} after ${delayMs}ms: ${error.message}`);
+    }
+  );
 }
 
 function parseOutscraperPlace(place: OutscraperRawPlace): Business {
