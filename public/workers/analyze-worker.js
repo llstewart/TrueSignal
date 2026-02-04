@@ -17,8 +17,8 @@ self.onmessage = async function(e) {
 
 async function runAnalysis({ endpoint, businesses, niche, location }) {
   try {
-    // Notify that we're starting
-    self.postMessage({ type: 'STARTED', payload: { total: businesses.length } });
+    // Note: We don't send STARTED here anymore - we wait for the server's 'started' event
+    // which includes serverSideDeduction info for proper credit tracking
 
     const response = await fetch(endpoint, {
       method: 'POST',
@@ -65,7 +65,19 @@ async function runAnalysis({ endpoint, businesses, niche, location }) {
           try {
             const data = JSON.parse(line.slice(6));
 
-            if (data.type === 'status') {
+            if (data.type === 'started') {
+              // Forward server's started event with credit deduction info
+              self.postMessage({
+                type: 'STARTED',
+                payload: {
+                  total: data.total,
+                  creditsDeducted: data.creditsDeducted,
+                  creditsRemaining: data.creditsRemaining,
+                  serverSideDeduction: data.serverSideDeduction,
+                  message: data.message,
+                }
+              });
+            } else if (data.type === 'status') {
               self.postMessage({
                 type: 'STATUS',
                 payload: {
