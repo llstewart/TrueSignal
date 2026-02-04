@@ -345,14 +345,9 @@ function HomeContent() {
     }
   }, [user, isAuthLoading]);
 
-  // Load saved analyses from database when search params change (paid subscribers only)
-  useEffect(() => {
-    // Only load for paid subscribers - free tier users shouldn't see enriched data
-    const isPaidSubscriber = subscription && subscription.tier !== 'free';
-    if (user && isPaidSubscriber && searchParams && tableBusinesses.length === 0 && !isAuthLoading) {
-      loadSavedAnalyses(searchParams.niche, searchParams.location);
-    }
-  }, [user, subscription, searchParams, loadSavedAnalyses, tableBusinesses.length, isAuthLoading]);
+  // NOTE: Saved analyses are loaded explicitly via handleLoadFromHistory
+  // We removed the auto-load effect to prevent race conditions and double-fetches
+  // The old effect was triggering when searchParams changed, causing loops
 
   // Fetch saved count and library list when user is logged in
   useEffect(() => {
@@ -405,33 +400,14 @@ function HomeContent() {
     }
   }, [businesses, tableBusinesses, searchParams, activeTab, isInitialized, isAnalyzing, user]);
 
-  useEffect(() => {
-    if (!isInitialized || !searchParams) return;
-    // Don't update URL when viewing saved search (navigation handles URL separately)
-    if (isViewingSavedSearch) return;
-    const params = new URLSearchParams();
-    params.set('niche', searchParams.niche);
-    params.set('location', searchParams.location);
-    params.set('view', activeTab); // Use 'view' to avoid collision with navigation 'tab'
-    const newUrl = `?${params.toString()}`;
-    if (window.location.search !== newUrl) {
-      router.replace(newUrl, { scroll: false });
-    }
-  }, [searchParams, activeTab, isInitialized, router, isViewingSavedSearch]);
+  // NOTE: URL updates are now handled explicitly in handleSearch success
+  // This prevents feedback loops from continuous URL watching
+  // The URL is updated ONCE after a successful search, not on every state change
 
-  useEffect(() => {
-    if (!isInitialized || isAuthLoading) return;
-    // Don't trigger search when viewing saved search (we load data directly, no API call)
-    if (isViewingSavedSearch) return;
-    const niche = urlSearchParams.get('niche');
-    const location = urlSearchParams.get('location');
-    const view = urlSearchParams.get('view') as TabType | null; // Use 'view' param for results tab
-    if (niche && location && businesses.length === 0 && !isSearching) {
-      if (view) setActiveTab(view);
-      handleSearchFromUrl(niche, location);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isInitialized, isAuthLoading, urlSearchParams, businesses.length, isSearching, user, isViewingSavedSearch]);
+  // SIMPLIFIED: URL is only used for navigation tabs (search/library/account)
+  // Search params are NOT stored in URL to prevent feedback loops
+  // Users access saved searches via the Library tab, not via URL
+  // This is a cleaner, more predictable model that eliminates race conditions
 
   // Warn user before leaving page during analysis
   useEffect(() => {
@@ -471,93 +447,6 @@ function HomeContent() {
       }
     };
   }, []);
-
-  const handleSearchFromUrl = async (niche: string, location: string) => {
-    // Require sign-in for all searches
-    if (!user) {
-      // Store intended search params and show auth modal
-      setSearchParams({ niche, location });
-      setAuthMode('signup');
-      setShowAuthModal(true);
-      return;
-    }
-
-    // Get fresh credits from database
-    let currentCredits = await getCredits();
-
-    // Check if user has credits
-    if (currentCredits < 1) {
-      // Refresh and re-check in case credits were just added
-      await refreshUser();
-      currentCredits = await getCredits();
-
-      if (currentCredits < 1) {
-        setSearchParams({ niche, location });
-        setError('You need 1 credit to search. Purchase more credits to continue.');
-        setShowBillingModal(true);
-        return;
-      }
-    }
-
-    if (searchControllerRef.current) {
-      searchControllerRef.current.abort();
-    }
-    const controller = new AbortController();
-    searchControllerRef.current = controller;
-    setIsSearching(true);
-    setError(null);
-    setSearchParams({ niche, location });
-
-    try {
-      const response = await fetch('/api/search', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ niche, location }),
-        signal: controller.signal,
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-
-        // Handle rate limit specifically with toast + countdown
-        if (response.status === 429 && data.retryAfter) {
-          setRateLimitCountdown(data.retryAfter);
-          setIsSearching(false);
-          return;
-        }
-
-        throw new Error(data.error || 'Search failed');
-      }
-
-      const data = await response.json();
-      setBusinesses(data.businesses);
-      setIsCached(data.cached || false);
-
-      // Credits are now deducted SERVER-SIDE - just refresh to get updated balance
-      if (!data.cached) {
-        // Server already deducted credit - just refresh UI state
-        refreshUser();
-      }
-    } catch (err) {
-      if (err instanceof Error && err.name === 'AbortError') return;
-
-      const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred';
-
-      // Check if error message looks like a rate limit message
-      if (errorMessage.includes('too many') || errorMessage.includes('wait')) {
-        const match = errorMessage.match(/wait\s+(\d+)\s+seconds/i);
-        if (match) {
-          setRateLimitCountdown(parseInt(match[1], 10));
-          setIsSearching(false);
-          return;
-        }
-      }
-
-      setError(errorMessage);
-    } finally {
-      setIsSearching(false);
-    }
-  };
 
   const handleSearch = async (niche: string, location: string) => {
     // Normalize inputs for comparison
@@ -659,9 +548,8 @@ function HomeContent() {
         refreshUser();
       }
 
-      // Refresh library list and switch to Library tab to show results
+      // Refresh library list (no URL params - state is in React, not URL)
       fetchSavedSearchesList();
-      router.replace(`/?niche=${encodeURIComponent(niche)}&location=${encodeURIComponent(location)}&tab=library`);
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') return;
 
@@ -724,6 +612,9 @@ function HomeContent() {
 
   // Load a search from saved history (no credit cost - just loads saved data)
   const handleLoadFromHistory = async (niche: string, location: string) => {
+    // Prevent re-entry if already loading
+    if (isLoadingSaved) return;
+
     setSearchParams({ niche, location });
     setActiveTab('upgraded');
     setIsViewingSavedSearch(true); // Mark as viewing saved search
@@ -733,8 +624,8 @@ function HomeContent() {
     setBusinesses([]); // General list empty for saved search view
     setTableBusinesses([]); // Will be populated by loadSavedAnalyses
 
-    // Update URL - switch to library tab to show results there
-    router.replace(`/?niche=${encodeURIComponent(niche)}&location=${encodeURIComponent(location)}&tab=library`);
+    // Navigate to library tab (no search params in URL - cleaner, no loops)
+    router.replace('/?tab=library');
 
     // Load the saved analyzed businesses directly (no credit cost)
     await loadSavedAnalyses(niche, location);
