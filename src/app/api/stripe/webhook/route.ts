@@ -98,16 +98,42 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
     return;
   }
 
-  // IDEMPOTENCY CHECK: Check if this checkout session was already processed
-  const { data: existingTransaction } = await getSupabase()
+  // ATOMIC IDEMPOTENCY: Try to insert a lock record first
+  // If it fails due to unique constraint on stripe_session_id, we've already processed this
+  // This is more robust than SELECT → INSERT which has a race window
+  const lockResult = await getSupabase()
     .from('credit_transactions')
+    .insert({
+      user_id: userId,
+      amount: 0, // Placeholder, will be updated
+      type: 'checkout_lock',
+      description: `Processing checkout ${session.id}`,
+      balance_after: 0,
+      stripe_session_id: session.id,
+    })
     .select('id')
-    .eq('stripe_session_id', session.id)
     .single();
 
-  if (existingTransaction) {
-    console.log(`[Stripe Webhook] Checkout ${session.id} already processed, skipping (idempotent)`);
-    return;
+  // If insert failed due to duplicate key (already exists), skip processing
+  if (lockResult.error) {
+    if (lockResult.error.code === '23505') { // Postgres unique violation
+      console.log(`[Stripe Webhook] Checkout ${session.id} already processed (unique constraint), skipping`);
+      return;
+    }
+    // For other errors, log but continue with legacy check
+    console.warn('[Stripe Webhook] Lock insert warning:', lockResult.error.message);
+
+    // Fallback: Check if transaction exists (legacy behavior)
+    const { data: existingTransaction } = await getSupabase()
+      .from('credit_transactions')
+      .select('id')
+      .eq('stripe_session_id', session.id)
+      .single();
+
+    if (existingTransaction) {
+      console.log(`[Stripe Webhook] Checkout ${session.id} already processed, skipping (idempotent)`);
+      return;
+    }
   }
 
   console.log(`[Stripe Webhook] Processing checkout for user ${userId}, type: ${type}`);
@@ -146,17 +172,16 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
           return;
         }
 
-        // Log transaction for idempotency tracking
+        // Update the lock record with actual transaction data
         await getSupabase()
           .from('credit_transactions')
-          .insert({
-            user_id: userId,
+          .update({
             amount: credits,
             type: 'purchase',
             description: `Purchased ${credits} credits (new user)`,
             balance_after: 5 + credits,
-            stripe_session_id: session.id,
-          });
+          })
+          .eq('stripe_session_id', session.id);
 
         console.log(`[Stripe Webhook] Created subscription with ${credits} purchased credits`);
         return;
@@ -189,17 +214,16 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
         }
       }
 
-      // Log the transaction with stripe_session_id for idempotency
+      // Update the lock record with actual transaction data
       await getSupabase()
         .from('credit_transactions')
-        .insert({
-          user_id: userId,
+        .update({
           amount: credits,
           type: 'purchase',
           description: `Purchased ${credits} credits`,
           balance_after: (existingSub.credits_purchased || 0) + (existingSub.credits_remaining || 0) + credits,
-          stripe_session_id: session.id,
-        });
+        })
+        .eq('stripe_session_id', session.id);
 
       console.log(`[Stripe Webhook] Successfully added ${credits} credits to user ${userId}`);
     } else {
@@ -234,17 +258,16 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
       if (updateError) {
         console.error('[Stripe Webhook] Error updating subscription on checkout:', updateError);
       } else {
-        // Log transaction for tracking
+        // Update the lock record with actual transaction data
         await getSupabase()
           .from('credit_transactions')
-          .insert({
-            user_id: userId,
+          .update({
             amount: tierConfig.credits,
             type: 'subscription_grant',
             description: `Subscription activated: ${tier} (${tierConfig.credits} credits)`,
             balance_after: tierConfig.credits,
-            stripe_session_id: session.id,
-          });
+          })
+          .eq('stripe_session_id', session.id);
         console.log(`[Stripe Webhook] Updated subscription to ${tier} with ${tierConfig.credits} credits`);
       }
     } else {
@@ -263,17 +286,16 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
       if (insertError) {
         console.error('[Stripe Webhook] Error creating subscription on checkout:', insertError);
       } else {
-        // Log transaction for tracking
+        // Update the lock record with actual transaction data
         await getSupabase()
           .from('credit_transactions')
-          .insert({
-            user_id: userId,
+          .update({
             amount: tierConfig.credits,
             type: 'subscription_grant',
             description: `New subscription: ${tier} (${tierConfig.credits} credits)`,
             balance_after: tierConfig.credits,
-            stripe_session_id: session.id,
-          });
+          })
+          .eq('stripe_session_id', session.id);
         console.log(`[Stripe Webhook] Created subscription ${tier} with ${tierConfig.credits} credits`);
       }
     }

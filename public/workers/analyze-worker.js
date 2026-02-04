@@ -128,9 +128,20 @@ async function runAnalysis({ endpoint, businesses, niche, location }) {
     }
 
   } catch (error) {
+    // Provide more specific error messages based on error type
+    let errorMessage = 'Analysis failed';
+
+    if (error.name === 'TypeError' && error.message?.includes('fetch')) {
+      errorMessage = 'Network error. Please check your connection and try again.';
+    } else if (error.name === 'AbortError') {
+      errorMessage = 'Analysis was cancelled.';
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
+
     self.postMessage({
       type: 'ERROR',
-      payload: { error: error.message || 'Analysis failed' }
+      payload: { error: errorMessage }
     });
   }
 }

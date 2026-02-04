@@ -119,6 +119,9 @@ function HomeContent() {
   const analyzeControllerRef = useRef<AbortController | null>(null);
   const analyzeWorkerRef = useRef<Worker | null>(null);
 
+  // Track in-flight search to prevent duplicate requests (double-click protection)
+  const inFlightSearchRef = useRef<{ niche: string; location: string } | null>(null);
+
   // Handle checkout success/cancel from Stripe redirect
   useEffect(() => {
     const checkout = urlSearchParams.get('checkout');
@@ -381,7 +384,24 @@ function HomeContent() {
       };
       sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(state));
     } catch (e) {
-      console.error('Failed to save session:', e);
+      // Handle quota exceeded error by clearing and retrying once
+      if (e instanceof DOMException && (e.name === 'QuotaExceededError' || e.code === 22)) {
+        try {
+          sessionStorage.clear();
+          const state: SessionState = {
+            businesses,
+            tableBusinesses,
+            searchParams,
+            activeTab,
+            wasAnalyzing: isAnalyzing,
+          };
+          sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(state));
+        } catch (retryError) {
+          console.error('Failed to save session after clearing storage:', retryError);
+        }
+      } else {
+        console.error('Failed to save session:', e);
+      }
     }
   }, [businesses, tableBusinesses, searchParams, activeTab, isInitialized, isAnalyzing, user]);
 
@@ -511,12 +531,9 @@ function HomeContent() {
       setBusinesses(data.businesses);
       setIsCached(data.cached || false);
 
-      // Deduct credit only on SUCCESS and only if not cached (fresh search)
+      // Credits are now deducted SERVER-SIDE - just refresh to get updated balance
       if (!data.cached) {
-        const creditDeducted = await deductCredit(1);
-        if (!creditDeducted) {
-          console.error('Failed to deduct credit after successful search');
-        }
+        // Server already deducted credit - just refresh UI state
         refreshUser();
       }
     } catch (err) {
@@ -541,6 +558,20 @@ function HomeContent() {
   };
 
   const handleSearch = async (niche: string, location: string) => {
+    // Normalize inputs for comparison
+    const normalizedNiche = niche.toLowerCase().trim();
+    const normalizedLocation = location.toLowerCase().trim();
+
+    // Deduplicate: If same search is already in-flight, ignore this request
+    if (
+      inFlightSearchRef.current &&
+      inFlightSearchRef.current.niche === normalizedNiche &&
+      inFlightSearchRef.current.location === normalizedLocation
+    ) {
+      console.log('[Search] Duplicate request ignored - search already in progress');
+      return;
+    }
+
     // Require sign-in for all searches
     if (!user) {
       setAuthMode('signup');
@@ -587,6 +618,9 @@ function HomeContent() {
     setSearchParams({ niche, location });
     setIsViewingSavedSearch(false); // Fresh search, not viewing saved
 
+    // Mark search as in-flight (deduplication)
+    inFlightSearchRef.current = { niche: normalizedNiche, location: normalizedLocation };
+
     try {
       const response = await fetch('/api/search', {
         method: 'POST',
@@ -617,12 +651,9 @@ function HomeContent() {
       setActiveTab('general');
       setIsViewingSavedSearch(false);
 
-      // Deduct credit only on SUCCESS and only if not cached (fresh search)
+      // Credits are now deducted SERVER-SIDE - just refresh to get updated balance
       if (!data.cached) {
-        const creditDeducted = await deductCredit(1);
-        if (!creditDeducted) {
-          console.error('Failed to deduct credit after successful search');
-        }
+        // Server already deducted credit - just refresh UI state
         refreshUser();
       }
 
@@ -662,6 +693,7 @@ function HomeContent() {
       // No credits deducted on failure
     } finally {
       setIsSearching(false);
+      inFlightSearchRef.current = null; // Clear in-flight marker
     }
   };
 
@@ -849,23 +881,24 @@ function HomeContent() {
 
     const endpoint = selectedBusinesses.size > 0 ? '/api/analyze-selected' : '/api/analyze-stream';
 
-    // Track successful analyses for deduct-on-success
+    // Track successful analyses for logging
     let successfulAnalyses = 0;
 
     // Create Web Worker for background processing (survives tab switches better)
     const worker = new Worker('/workers/analyze-worker.js');
     analyzeWorkerRef.current = worker;
 
+    // Track if server already deducted credits (prevents double-deduction)
+    let serverDeductedCredits = false;
+
     // Handle completion/cleanup
-    const cleanup = async (deductCredits: boolean = true) => {
+    const cleanup = async () => {
       setIsAnalyzing(false);
       setAnalyzeProgress(null);
 
-      if (deductCredits && successfulAnalyses > 0) {
-        const creditDeducted = await deductCredit(successfulAnalyses);
-        if (!creditDeducted) {
-          console.error(`Failed to deduct ${successfulAnalyses} credits after successful analysis`);
-        }
+      // Credits are now deducted SERVER-SIDE at the start of analysis
+      // Just refresh UI state to reflect the server's deduction
+      if (serverDeductedCredits) {
         refreshUser();
       }
 
@@ -893,13 +926,18 @@ function HomeContent() {
 
       switch (type) {
         case 'STARTED':
+          // Server deducted credits at start - track this to prevent double-deduction
+          if (payload.serverSideDeduction) {
+            serverDeductedCredits = true;
+            console.log(`[Analysis] Server deducted ${payload.creditsDeducted} credits (${payload.creditsRemaining} remaining)`);
+          }
           setAnalyzeProgress(prev => ({
             ...prev,
             completed: 0,
             total: payload.total,
             phase: 1,
             totalPhases: 3,
-            message: 'Starting analysis...',
+            message: payload.message || 'Starting analysis...',
           }));
           break;
 
@@ -966,7 +1004,8 @@ function HomeContent() {
           break;
 
         case 'STREAM_ERROR':
-          setError(payload.message);
+          setError(payload.message || 'Analysis encountered an error');
+          await cleanup(); // Ensure we clean up on stream errors too
           break;
 
         case 'ERROR':
@@ -975,35 +1014,43 @@ function HomeContent() {
             setError('Please sign in to unlock Lead Intel');
             setAuthMode('signin');
             setShowAuthModal(true);
-            await cleanup(false);
+            await cleanup();
             return;
           }
           if (payload.requiresUpgrade) {
             setError('Upgrade to unlock Lead Intel features');
             setShowBillingModal(true);
-            await cleanup(false);
+            await cleanup();
             return;
           }
           if (payload.insufficientCredits) {
             setError(`Insufficient credits. You have ${payload.creditsRemaining} but need ${payload.creditsRequired}.`);
             setShowBillingModal(true);
-            await cleanup(false);
+            await cleanup();
             return;
           }
           setError(payload.error || 'Analysis failed');
-          await cleanup(true); // Still charge for any successful analyses
+          await cleanup(); // Credits already deducted server-side
           break;
 
         case 'COMPLETE':
-          await cleanup(true);
+          // Server already deducted credits - just refresh UI
+          if (payload.serverSideDeduction) {
+            serverDeductedCredits = true;
+          }
+          await cleanup();
           break;
       }
     };
 
-    worker.onerror = async (error) => {
-      console.error('Worker error:', error);
-      setError('Analysis failed due to a technical error. Please try again.');
-      await cleanup(true);
+    worker.onerror = async (event: ErrorEvent) => {
+      console.error('Worker error:', event.message, event.filename, event.lineno);
+      // Provide more context if available
+      const errorMessage = event.message?.includes('NetworkError') || event.message?.includes('fetch')
+        ? 'Network error during analysis. Please check your connection and try again.'
+        : 'Analysis failed due to a technical error. Please try again.';
+      setError(errorMessage);
+      await cleanup(); // Credits already deducted server-side
     };
 
     // Start the worker

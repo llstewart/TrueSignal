@@ -8,6 +8,8 @@ import Cache, { cache, CACHE_TTL } from '@/lib/cache';
 import { Semaphore, sleep } from '@/lib/rate-limiter';
 import { checkRateLimit } from '@/lib/api-rate-limit';
 import { createClient } from '@/lib/supabase/server';
+import { deductCredits } from '@/lib/credits';
+import { sanitizeErrorMessage } from '@/lib/errors';
 
 interface AnalyzeSelectedRequest {
   businesses: Business[];
@@ -89,6 +91,27 @@ export async function POST(request: NextRequest) {
     });
   }
 
+  // CRITICAL: Deduct credits SERVER-SIDE before starting analysis
+  const deductResult = await deductCredits(
+    user.id,
+    requestedCount,
+    `Selected analysis: ${requestedCount} businesses for "${body.niche}" in "${body.location}"`
+  );
+
+  if (!deductResult.success) {
+    return new Response(JSON.stringify({
+      error: deductResult.error || 'Failed to deduct credits',
+      insufficientCredits: true,
+      creditsRemaining: deductResult.creditsRemaining,
+      creditsRequired: requestedCount
+    }), {
+      status: 402,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  console.log(`[Analyze Selected] Deducted ${requestedCount} credits for user ${user.id.slice(0, 8)} (${deductResult.creditsRemaining} remaining)`);
+
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     async start(controller) {
@@ -97,6 +120,16 @@ export async function POST(request: NextRequest) {
         const totalBusinesses = businesses.length;
 
         console.log(`[Analyze Selected] Starting analysis for ${totalBusinesses} selected businesses`);
+
+        // Immediately notify client that credits were deducted server-side
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({
+          type: 'started',
+          total: totalBusinesses,
+          creditsDeducted: requestedCount,
+          creditsRemaining: deductResult.creditsRemaining,
+          serverSideDeduction: true,
+          message: `Starting analysis of ${totalBusinesses} businesses (${requestedCount} credits charged)`
+        })}\n\n`));
 
         // Phase 1: Check visibility (try cache first)
         controller.enqueue(encoder.encode(`data: ${JSON.stringify({
@@ -270,7 +303,10 @@ export async function POST(request: NextRequest) {
         controller.enqueue(encoder.encode(`data: ${JSON.stringify({
           type: 'complete',
           total: completedCount,
-          message: `Analysis complete: ${completedCount} businesses processed`
+          message: `Analysis complete: ${completedCount} businesses processed`,
+          creditsDeducted: requestedCount,
+          creditsRemaining: deductResult.creditsRemaining,
+          serverSideDeduction: true
         })}\n\n`));
         controller.close();
 
@@ -278,7 +314,7 @@ export async function POST(request: NextRequest) {
         console.error('[Analyze Selected] Error:', error);
         controller.enqueue(encoder.encode(`data: ${JSON.stringify({
           type: 'error',
-          message: error instanceof Error ? error.message : 'Unknown error'
+          message: sanitizeErrorMessage(error, 'Analysis failed. Please try again.')
         })}\n\n`));
         controller.close();
       }

@@ -32,31 +32,27 @@ export async function GET(request: Request) {
         // Use service role client to bypass RLS
         const serviceClient = getServiceClient();
 
-        // Check if user already has a subscription record
-        const { data: existingSub } = await serviceClient
+        // ATOMIC: Use upsert with ignoreDuplicates to prevent race condition
+        // This handles the case where useUser hook and callback both try to create
+        const { error: upsertError } = await serviceClient
           .from('subscriptions')
-          .select('id')
-          .eq('user_id', user.id)
-          .single();
+          .upsert({
+            user_id: user.id,
+            tier: 'free',
+            status: 'active',
+            credits_remaining: FREE_SIGNUP_CREDITS,
+            credits_purchased: 0,
+            credits_monthly_allowance: 0,
+          }, {
+            onConflict: 'user_id',
+            ignoreDuplicates: true, // Don't update if exists, just ignore
+          });
 
-        // If no subscription exists, create one with free credits
-        if (!existingSub) {
-          const { error: insertError } = await serviceClient
-            .from('subscriptions')
-            .insert({
-              user_id: user.id,
-              tier: 'free',
-              status: 'active',
-              credits_remaining: FREE_SIGNUP_CREDITS,
-              credits_purchased: 0,
-              credits_monthly_allowance: 0,
-            });
-
-          if (insertError) {
-            console.error('[Auth Callback] Error creating subscription:', insertError);
-          } else {
-            console.log(`[Auth Callback] Created subscription with ${FREE_SIGNUP_CREDITS} credits for user ${user.id.slice(0, 8)}...`);
-          }
+        if (upsertError && upsertError.code !== '23505') {
+          // Log error only if it's not a duplicate key (which is expected)
+          console.error('[Auth Callback] Error creating subscription:', upsertError);
+        } else if (!upsertError) {
+          console.log(`[Auth Callback] Created/verified subscription for user ${user.id.slice(0, 8)}...`);
         }
       }
 

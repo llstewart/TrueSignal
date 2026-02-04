@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { User } from '@supabase/supabase-js';
 
@@ -39,10 +39,16 @@ export function useUser(): UseUserReturn {
   const [user, setUser] = useState<User | null>(null);
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const fetchInProgressRef = useRef(false);
 
   const supabase = createClient();
 
   const fetchUser = useCallback(async () => {
+    // Prevent duplicate concurrent fetches
+    if (fetchInProgressRef.current) {
+      return;
+    }
+    fetchInProgressRef.current = true;
     try {
       const { data: { user } } = await supabase.auth.getUser();
       setUser(user);
@@ -93,6 +99,7 @@ export function useUser(): UseUserReturn {
       console.error('Error fetching user:', error);
     } finally {
       setIsLoading(false);
+      fetchInProgressRef.current = false;
     }
   }, [supabase]);
 

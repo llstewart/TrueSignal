@@ -215,10 +215,15 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * DELETE /api/session - Clear all saved searches for logged-in user
+ * DELETE /api/session - Delete saved searches for logged-in user
  * Requires authentication
+ * Query params:
+ *   - key: optional (format: "niche|location") - delete specific search
+ *   - If no key provided, deletes ALL searches
  */
-export async function DELETE() {
+export async function DELETE(request: NextRequest) {
+  const searchKey = request.nextUrl.searchParams.get('key');
+
   // Require authentication
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -231,6 +236,30 @@ export async function DELETE() {
   }
 
   try {
+    if (searchKey) {
+      // Delete specific search
+      const [niche, location] = searchKey.split('|');
+      if (!niche || !location) {
+        return NextResponse.json({ error: 'Invalid search key format' }, { status: 400 });
+      }
+
+      const { error } = await supabase
+        .from('saved_analyses')
+        .delete()
+        .eq('user_id', user.id)
+        .eq('niche', niche.toLowerCase().trim())
+        .eq('location', location.toLowerCase().trim());
+
+      if (error) {
+        console.error('[Session API] Error deleting saved search:', error);
+        return NextResponse.json({ error: 'Failed to delete search' }, { status: 500 });
+      }
+
+      console.log(`[Session API] Deleted search "${niche}|${location}" for user ${user.id.slice(0, 8)}...`);
+      return NextResponse.json({ success: true });
+    }
+
+    // Delete all searches
     const { error } = await supabase
       .from('saved_analyses')
       .delete()

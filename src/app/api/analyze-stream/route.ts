@@ -7,6 +7,8 @@ import { classifyLocationType } from '@/utils/address';
 import { Semaphore, sleep } from '@/lib/rate-limiter';
 import { checkRateLimit } from '@/lib/api-rate-limit';
 import { createClient } from '@/lib/supabase/server';
+import { deductCredits, refundCredits } from '@/lib/credits';
+import { sanitizeErrorMessage } from '@/lib/errors';
 
 // Configuration
 const FIRST_PAGE_SIZE = 20; // Prioritize first page for fast initial load
@@ -181,6 +183,28 @@ export async function POST(request: NextRequest) {
     });
   }
 
+  // CRITICAL: Deduct credits SERVER-SIDE before starting analysis
+  // This prevents race conditions where multiple tabs could start analyses simultaneously
+  const deductResult = await deductCredits(
+    user.id,
+    requestedCount,
+    `Analysis: ${requestedCount} businesses for "${body.niche}" in "${body.location}"`
+  );
+
+  if (!deductResult.success) {
+    return new Response(JSON.stringify({
+      error: deductResult.error || 'Failed to deduct credits',
+      insufficientCredits: true,
+      creditsRemaining: deductResult.creditsRemaining,
+      creditsRequired: requestedCount
+    }), {
+      status: 402,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  console.log(`[Stream API] Deducted ${requestedCount} credits for user ${user.id.slice(0, 8)} (${deductResult.creditsRemaining} remaining)`);
+
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     async start(controller) {
@@ -190,6 +214,16 @@ export async function POST(request: NextRequest) {
         const hasMorePages = totalBusinesses > FIRST_PAGE_SIZE;
 
         console.log(`[Stream API] Starting prioritized analysis: ${firstPageCount} first page, ${totalBusinesses} total`);
+
+        // Immediately notify client that credits were deducted server-side
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({
+          type: 'started',
+          total: totalBusinesses,
+          creditsDeducted: requestedCount,
+          creditsRemaining: deductResult.creditsRemaining,
+          serverSideDeduction: true,
+          message: `Starting analysis of ${totalBusinesses} businesses (${requestedCount} credits charged)`
+        })}\n\n`));
 
         // Split businesses into first page (priority) and rest
         const firstPageBusinesses = body.businesses.slice(0, FIRST_PAGE_SIZE);
@@ -348,7 +382,10 @@ export async function POST(request: NextRequest) {
           type: 'complete',
           total: completedCount.value,
           successCount: completedCount.value,
-          message: `Analysis complete: ${completedCount.value}/${totalBusinesses} businesses processed`
+          message: `Analysis complete: ${completedCount.value}/${totalBusinesses} businesses processed`,
+          creditsDeducted: requestedCount, // Credits already deducted server-side
+          creditsRemaining: deductResult.creditsRemaining,
+          serverSideDeduction: true // Flag to indicate client should NOT deduct again
         })}\n\n`));
         controller.close();
 
@@ -357,7 +394,7 @@ export async function POST(request: NextRequest) {
         controller.enqueue(
           encoder.encode(`data: ${JSON.stringify({
             type: 'error',
-            message: error instanceof Error ? error.message : 'Unknown error',
+            message: sanitizeErrorMessage(error, 'Analysis failed. Please try again.'),
             recoverable: false
           })}\n\n`)
         );

@@ -29,14 +29,27 @@ export async function POST(request: NextRequest) {
     let customerId = subscription?.stripe_customer_id;
 
     if (!customerId) {
-      // Create new Stripe customer
-      const customer = await stripe.customers.create({
+      // Check if customer already exists in Stripe (handles race conditions)
+      const existingCustomers = await stripe.customers.list({
         email: user.email,
-        metadata: {
-          supabase_user_id: user.id,
-        },
+        limit: 1,
       });
-      customerId = customer.id;
+
+      if (existingCustomers.data.length > 0) {
+        // Use existing customer
+        customerId = existingCustomers.data[0].id;
+      } else {
+        // Create new Stripe customer with idempotency key to prevent duplicates
+        const customer = await stripe.customers.create({
+          email: user.email,
+          metadata: {
+            supabase_user_id: user.id,
+          },
+        }, {
+          idempotencyKey: `customer_create_${user.id}`,
+        });
+        customerId = customer.id;
+      }
 
       // Save customer ID to database
       await supabase

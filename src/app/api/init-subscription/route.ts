@@ -19,6 +19,9 @@ function getServiceClient() {
  * POST /api/init-subscription
  * Creates a subscription with free credits for new users
  * Called when a user signs up and doesn't have a subscription yet
+ *
+ * Uses INSERT with ON CONFLICT to handle race conditions where multiple
+ * requests try to create a subscription simultaneously
  */
 export async function POST() {
   // Get the current user
@@ -32,46 +35,67 @@ export async function POST() {
   // Use service role client to bypass RLS
   const serviceClient = getServiceClient();
 
-  // Check if subscription already exists
-  const { data: existing } = await serviceClient
-    .from('subscriptions')
-    .select('id, credits_remaining')
-    .eq('user_id', user.id)
-    .single();
-
-  if (existing) {
-    // Subscription exists - return current state
-    return NextResponse.json({
-      success: true,
-      message: 'Subscription already exists',
-      credits: existing.credits_remaining
-    });
-  }
-
-  // Create new subscription with free credits
+  // ATOMIC: Try to insert, if conflict (user_id already exists), do nothing
+  // This prevents the SELECT → INSERT race condition
   const { data: newSub, error } = await serviceClient
     .from('subscriptions')
-    .insert({
+    .upsert({
       user_id: user.id,
       tier: 'free',
       status: 'active',
       credits_remaining: FREE_SIGNUP_CREDITS,
       credits_purchased: 0,
       credits_monthly_allowance: 0,
+    }, {
+      onConflict: 'user_id',
+      ignoreDuplicates: true, // Don't update if exists, just ignore
     })
     .select()
     .single();
 
   if (error) {
+    // If upsert fails, try to fetch existing subscription
+    // This handles the case where another request just created it
+    if (error.code === '23505' || error.code === 'PGRST116') {
+      const { data: existing } = await serviceClient
+        .from('subscriptions')
+        .select('id, credits_remaining, credits_purchased')
+        .eq('user_id', user.id)
+        .single();
+
+      if (existing) {
+        return NextResponse.json({
+          success: true,
+          message: 'Subscription already exists',
+          credits: (existing.credits_remaining || 0) + (existing.credits_purchased || 0)
+        });
+      }
+    }
+
     console.error('[Init Subscription] Error creating subscription:', error);
     return NextResponse.json({ error: 'Failed to create subscription' }, { status: 500 });
   }
 
-  console.log(`[Init Subscription] Created subscription with ${FREE_SIGNUP_CREDITS} credits for user ${user.id.slice(0, 8)}...`);
+  // Check if this was a new insert or existing record
+  if (newSub) {
+    console.log(`[Init Subscription] Created subscription with ${FREE_SIGNUP_CREDITS} credits for user ${user.id.slice(0, 8)}...`);
+    return NextResponse.json({
+      success: true,
+      message: 'Subscription created',
+      credits: newSub.credits_remaining
+    });
+  }
+
+  // Fetch existing subscription
+  const { data: existing } = await serviceClient
+    .from('subscriptions')
+    .select('credits_remaining, credits_purchased')
+    .eq('user_id', user.id)
+    .single();
 
   return NextResponse.json({
     success: true,
-    message: 'Subscription created',
-    credits: newSub.credits_remaining
+    message: 'Subscription already exists',
+    credits: existing ? (existing.credits_remaining || 0) + (existing.credits_purchased || 0) : FREE_SIGNUP_CREDITS
   });
 }

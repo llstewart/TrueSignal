@@ -52,6 +52,9 @@ export interface SearchResponse {
   businesses: Business[];
   totalResults: number;
   cached?: boolean;
+  // Credit info from server-side deduction
+  creditsDeducted?: number;
+  creditsRemaining?: number;
 }
 
 export interface AnalyzeRequest {
