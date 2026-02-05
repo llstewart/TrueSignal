@@ -241,7 +241,7 @@ See the [Legal Notice](#legal-notice) section for complete terms.
 
 ### Copyright
 
-Copyright © 2024-2025 [llstewart](https://github.com/llstewart). All rights reserved.
+Copyright © 2026-2027 [llstewart](https://github.com/llstewart). All rights reserved.
 
 ### Ownership
 
