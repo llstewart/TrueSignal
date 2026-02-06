@@ -92,8 +92,8 @@ export async function POST(request: NextRequest) {
           tier: tier,
           type: 'subscription',
         },
-        success_url: `${origin}?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: `${origin}?checkout=canceled`,
+        success_url: `${origin}/dashboard?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${origin}/dashboard?checkout=canceled`,
         subscription_data: {
           metadata: {
             user_id: user.id,
@@ -132,8 +132,8 @@ export async function POST(request: NextRequest) {
           type: 'credits',
           pack: pack,
         },
-        success_url: `${origin}?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: `${origin}?checkout=canceled`,
+        success_url: `${origin}/dashboard?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${origin}/dashboard?checkout=canceled`,
       });
 
       return NextResponse.json({ sessionId: session.id, url: session.url });
