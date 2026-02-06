@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { AppTab } from '@/hooks/useAppNavigation';
 
 interface SavedSearch {
@@ -184,6 +185,13 @@ export function Sidebar({
               <span className="text-sm text-zinc-400 truncate">{userName}</span>
             </div>
           )}
+
+          {/* Footer links */}
+          <div className="flex items-center gap-3 px-2 pt-1">
+            <Link href="/contact" className="text-[10px] text-zinc-600 hover:text-zinc-400 transition-colors">Help</Link>
+            <Link href="/privacy" className="text-[10px] text-zinc-600 hover:text-zinc-400 transition-colors">Privacy</Link>
+            <Link href="/terms" className="text-[10px] text-zinc-600 hover:text-zinc-400 transition-colors">Terms</Link>
+          </div>
         </div>
       )}
 
