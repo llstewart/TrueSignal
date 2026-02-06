@@ -261,6 +261,8 @@ export function ResultsView() {
               businesses={businesses}
               selectedBusinesses={selectedBusinesses}
               onSelectionChange={setSelectedBusinesses}
+              isPremium={isPremium}
+              onUpgradeClick={handleUpgradeClick}
             />
           )
         ) : !isPremium ? (

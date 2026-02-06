@@ -657,7 +657,7 @@ export function AppProvider({ children }: AppProviderProps) {
     setSearchParams(null);
     setIsViewingSavedSearch(false);
     setError(null);
-    router.replace('/');
+    router.replace('/dashboard');
   };
 
   // Handle analyze (simplified - full implementation would be moved here)

@@ -28,7 +28,7 @@ export function MarketingHeader({ onSignIn, onSignUp }: MarketingHeaderProps) {
         <div className="flex items-center gap-3">
           {isLoggedIn ? (
             <Link
-              href="/"
+              href="/dashboard"
               className="px-4 py-2 text-sm font-medium bg-violet-600 hover:bg-violet-500 text-white rounded-lg transition-colors"
             >
               Go to Dashboard
