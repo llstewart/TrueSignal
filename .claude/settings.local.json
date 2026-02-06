@@ -23,7 +23,8 @@
       "WebFetch(domain:app.outscraper.com)",
       "WebFetch(domain:raw.githubusercontent.com)",
       "WebFetch(domain:pypi.org)",
-      "WebFetch(domain:outscraper.com)"
+      "WebFetch(domain:outscraper.com)",
+      "Bash(ls:*)"
     ]
   }
 }
