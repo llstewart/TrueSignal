@@ -23,7 +23,7 @@ const faqItems = [
   },
   {
     q: 'Is the data accurate?',
-    a: 'We pull data directly from Google\'s public listings, so it reflects what\'s currently published. Review counts, ratings, and response rates are factual data points. Rankings and SEO Need Scores are algorithmic estimates based on these signals. Business information can change between retrieval and your use.',
+    a: 'TrueSignal employs high-performance algorithms that integrate real-time GMB data with the same analytical methodologies used by SEO experts. Our system processes complex signals—like review trends and response metrics—through a technical lens to provide consistent, actionable intelligence. We prioritize high-integrity data to ensure you are always working with a reliable competitive advantage.',
   },
   {
     q: 'How does pricing work?',
