@@ -65,6 +65,29 @@ interface GeneralListTableProps {
   businesses: Business[];
   selectedBusinesses?: Set<number>;
   onSelectionChange?: (selected: Set<number>) => void;
+  isPremium?: boolean;
+  onUpgradeClick?: () => void;
+}
+
+// Deterministic fake values for premium teaser columns
+function fakeSeoScore(index: number) {
+  return (index * 37 + 13) % 100;
+}
+function fakeResponseRate(index: number) {
+  return (index * 53 + 29) % 100;
+}
+function fakeActivityDays(index: number) {
+  return ((index * 17 + 7) % 28) + 1;
+}
+function seoScoreColor(score: number) {
+  if (score >= 70) return 'bg-emerald-500';
+  if (score >= 40) return 'bg-amber-500';
+  return 'bg-red-500';
+}
+function seoScoreTextColor(score: number) {
+  if (score >= 70) return 'text-emerald-400';
+  if (score >= 40) return 'text-amber-400';
+  return 'text-red-400';
 }
 
 const ITEMS_PER_PAGE = 25;
@@ -106,7 +129,9 @@ function CopyButton({ text, label }: { text: string; label: string }) {
 export function GeneralListTable({
   businesses,
   selectedBusinesses = new Set(),
-  onSelectionChange
+  onSelectionChange,
+  isPremium,
+  onUpgradeClick
 }: GeneralListTableProps) {
   const [currentPage, setCurrentPage] = useState(1);
   const [isCompact, setIsCompact] = useState(false);
@@ -397,6 +422,37 @@ export function GeneralListTable({
             {business.sponsored ? 'Ads' : 'No Ads'}
           </StatusTag>
         </div>
+
+        {/* Blurred Premium Signals Preview (free tier only) */}
+        {!isPremium && (
+          <div className="mt-3 pt-3 border-t border-border/50 relative">
+            <div className="flex items-center gap-1.5 mb-2">
+              <svg className="w-3 h-3 text-violet-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+              <span className="text-[10px] font-medium text-violet-400 uppercase tracking-wide">Premium Signals</span>
+            </div>
+            <div className="flex gap-4 blur-[5px] select-none pointer-events-none">
+              <div className="flex-1">
+                <div className="text-[10px] text-zinc-500 mb-0.5">SEO Score</div>
+                <div className="flex items-center gap-1.5">
+                  <div className="h-1.5 flex-1 bg-zinc-800 rounded-full overflow-hidden">
+                    <div className={`h-full rounded-full ${seoScoreColor(fakeSeoScore(index))}`} style={{ width: `${fakeSeoScore(index)}%` }} />
+                  </div>
+                  <span className={`text-xs font-medium ${seoScoreTextColor(fakeSeoScore(index))}`}>{fakeSeoScore(index)}</span>
+                </div>
+              </div>
+              <div className="flex-1">
+                <div className="text-[10px] text-zinc-500 mb-0.5">Response Rate</div>
+                <span className="text-xs text-zinc-300">{fakeResponseRate(index)}%</span>
+              </div>
+              <div className="flex-1">
+                <div className="text-[10px] text-zinc-500 mb-0.5">Activity</div>
+                <span className="text-xs text-zinc-300">{fakeActivityDays(index)}d ago</span>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   };
@@ -575,6 +631,34 @@ export function GeneralListTable({
               <th className={`${headerPadding} font-medium text-zinc-500 w-14`}>
                 Ads
               </th>
+              {!isPremium && (
+                <>
+                  <th className={`${headerPadding} font-medium text-violet-400/80 w-24`}>
+                    <div className="flex items-center gap-1">
+                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                      </svg>
+                      SEO Score
+                    </div>
+                  </th>
+                  <th className={`${headerPadding} font-medium text-violet-400/80 w-24`}>
+                    <div className="flex items-center gap-1">
+                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                      </svg>
+                      Response
+                    </div>
+                  </th>
+                  <th className={`${headerPadding} font-medium text-violet-400/80 w-20`}>
+                    <div className="flex items-center gap-1">
+                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                      </svg>
+                      Activity
+                    </div>
+                  </th>
+                </>
+              )}
             </tr>
           </thead>
           <tbody>
@@ -686,10 +770,51 @@ export function GeneralListTable({
                       <span className="text-zinc-600">No</span>
                     )}
                   </td>
+                  {!isPremium && (
+                    <>
+                      <td className={`${cellPadding} blur-[5px] select-none`}>
+                        <div className="flex items-center gap-1.5">
+                          <div className="h-1.5 w-12 bg-zinc-800 rounded-full overflow-hidden">
+                            <div className={`h-full rounded-full ${seoScoreColor(fakeSeoScore(index))}`} style={{ width: `${fakeSeoScore(index)}%` }} />
+                          </div>
+                          <span className={`tabular-nums text-xs font-medium ${seoScoreTextColor(fakeSeoScore(index))}`}>{fakeSeoScore(index)}</span>
+                        </div>
+                      </td>
+                      <td className={`${cellPadding} blur-[5px] select-none`}>
+                        <span className="text-zinc-300 tabular-nums">{fakeResponseRate(index)}%</span>
+                      </td>
+                      <td className={`${cellPadding} blur-[5px] select-none`}>
+                        <span className="text-zinc-300">{fakeActivityDays(index)}d ago</span>
+                      </td>
+                    </>
+                  )}
                 </tr>
               );
             })}
           </tbody>
+          {!isPremium && (
+            <tfoot>
+              <tr>
+                <td colSpan={99}>
+                  <div className="flex items-center justify-center gap-3 py-3 px-4 bg-gradient-to-r from-violet-500/10 via-purple-500/10 to-violet-500/10 border-t border-violet-500/20">
+                    <svg className="w-4 h-4 text-violet-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
+                    <span className="text-xs text-zinc-400">SEO scores, response rates &amp; activity data hidden</span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onUpgradeClick?.();
+                      }}
+                      className="px-3 py-1 text-xs font-medium rounded-md bg-violet-600 text-white hover:bg-violet-500 transition-colors"
+                    >
+                      Unlock SEO Signals
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            </tfoot>
+          )}
         </table>
       </div>
 
