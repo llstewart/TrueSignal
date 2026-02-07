@@ -1,4 +1,4 @@
-import { OutscraperReview, OutscraperPost, EnrichedBusiness } from './types';
+import { Business, OutscraperReview, OutscraperPost, EnrichedBusiness } from './types';
 
 export function calculateDaysDormant(
   lastOwnerActivity: Date | string | null
@@ -126,10 +126,17 @@ export function getDormancyStatus(daysDormant: number | null): 'success' | 'warn
 export function calculateSeoNeedScore(business: EnrichedBusiness): number {
   let score = 0;
 
-  // Not ranked in search visibility: +30 points (biggest signal)
-  if (!business.searchVisibility) {
-    score += 30;
+  // Search visibility scoring (max 30 points)
+  if (business.searchVisibility === null) {
+    score += 30; // Not ranked at all
+  } else if (business.searchVisibility > 10) {
+    score += 22; // Page 2+, effectively invisible
+  } else if (business.searchVisibility > 6) {
+    score += 15; // Bottom of page 1
+  } else if (business.searchVisibility > 3) {
+    score += 8;  // Mid-pack
   }
+  // Top 3: +0, doing well
 
   // Days dormant scoring (max 25 points)
   // Only score if data is available (not null)
@@ -155,6 +162,11 @@ export function calculateSeoNeedScore(business: EnrichedBusiness): number {
     } else if (business.responseRate < 70) {
       score += 4;
     }
+  }
+
+  // No website: +10 points
+  if (!business.website) {
+    score += 10;
   }
 
   // No SEO optimization: +10 points
@@ -189,6 +201,69 @@ export function calculateSeoNeedScore(business: EnrichedBusiness): number {
 }
 
 /**
+ * Calculate basic opportunity score from search-level fields only (no enrichment needed).
+ * Higher score = bigger opportunity gap. Score range: 0-100
+ */
+export function calculateBasicOpportunityScore(business: Business): number {
+  let score = 0;
+
+  // Unclaimed profile: +30
+  if (!business.claimed) {
+    score += 30;
+  }
+
+  // No website: +25
+  if (!business.website) {
+    score += 25;
+  }
+
+  // Low rating: up to +20
+  if (business.rating === 0) {
+    score += 20;
+  } else if (business.rating < 3) {
+    score += 18;
+  } else if (business.rating < 3.5) {
+    score += 14;
+  } else if (business.rating < 4) {
+    score += 10;
+  } else if (business.rating < 4.5) {
+    score += 5;
+  }
+
+  // Few reviews: up to +15
+  if (business.reviewCount === 0) {
+    score += 15;
+  } else if (business.reviewCount < 5) {
+    score += 12;
+  } else if (business.reviewCount < 20) {
+    score += 8;
+  } else if (business.reviewCount < 50) {
+    score += 4;
+  }
+
+  // No phone: +5
+  if (!business.phone) {
+    score += 5;
+  }
+
+  // Not running ads (not sponsored): +5
+  if (!business.sponsored) {
+    score += 5;
+  }
+
+  return Math.min(score, 100);
+}
+
+/**
+ * Classify opportunity level based on score.
+ */
+export function getOpportunityLevel(score: number): 'high' | 'medium' | 'low' {
+  if (score >= 50) return 'high';
+  if (score >= 25) return 'medium';
+  return 'low';
+}
+
+/**
  * Sort businesses by SEO need (highest need first)
  */
 export function sortBySeoPriority(businesses: EnrichedBusiness[]): EnrichedBusiness[] {
@@ -206,9 +281,15 @@ export function sortBySeoPriority(businesses: EnrichedBusiness[]): EnrichedBusin
 export function getSeoNeedSummary(business: EnrichedBusiness): string[] {
   const signals: string[] = [];
 
-  // Not ranked in search visibility (+30 points in score)
-  if (!business.searchVisibility) {
+  // Search visibility (up to +30 points in score)
+  if (business.searchVisibility === null) {
     signals.push('Not ranking in search');
+  } else if (business.searchVisibility > 10) {
+    signals.push(`Buried in search (#${business.searchVisibility})`);
+  } else if (business.searchVisibility > 6) {
+    signals.push(`Low search rank (#${business.searchVisibility})`);
+  } else if (business.searchVisibility > 3) {
+    signals.push(`Mid-pack rank (#${business.searchVisibility})`);
   }
 
   // GBP Activity (up to +25 points in score)
