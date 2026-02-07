@@ -3,7 +3,7 @@ import './globals.css';
 import { Providers } from './providers';
 
 export const metadata: Metadata = {
-  title: 'TrueSignal - Market Intelligence for SEO Agencies',
+  title: 'Scoutblind - Market Intelligence for SEO Agencies',
   description: 'Identify high-propensity leads with Hidden Signals analysis',
 };
 

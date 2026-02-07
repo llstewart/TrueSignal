@@ -62,10 +62,10 @@ export default function ContactPage() {
             <div>
               <h3 className="text-sm font-semibold text-white mb-2">Email</h3>
               <a
-                href="mailto:support@truesignal.io"
+                href="mailto:support@scoutblind.com"
                 className="text-sm text-violet-400 hover:text-violet-300 transition-colors"
               >
-                support@truesignal.io
+                support@scoutblind.com
               </a>
             </div>
             <div>

@@ -8,7 +8,7 @@ export function MarketingFooter() {
           {/* Brand */}
           <div className="col-span-2 md:col-span-1">
             <Link href="/" className="text-lg font-bold text-white">
-              TrueSignal<span className="text-violet-500">.</span>
+              Scoutblind<span className="text-violet-500">.</span>
             </Link>
             <p className="mt-2 text-xs text-zinc-500 leading-relaxed">
               GMB signal analysis for SEO agencies. Find prospects who need your help.
@@ -74,7 +74,7 @@ export function MarketingFooter() {
 
         <div className="pt-6 border-t border-zinc-800/50 flex flex-col md:flex-row items-center justify-between gap-3">
           <div className="text-xs text-zinc-600">
-            &copy; {new Date().getFullYear()} TrueSignal. All rights reserved.
+            &copy; {new Date().getFullYear()} Scoutblind. All rights reserved.
           </div>
           <div className="flex items-center gap-4 text-xs text-zinc-500">
             <Link href="/privacy" className="hover:text-white transition-colors">Privacy</Link>

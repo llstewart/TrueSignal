@@ -23,7 +23,7 @@ export function MarketingHeader({ onSignIn, onSignUp }: MarketingHeaderProps) {
     <header className="relative z-50">
       <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
         <Link href="/" className="text-xl font-bold text-white">
-          TrueSignal<span className="text-violet-500">.</span>
+          Scoutblind<span className="text-violet-500">.</span>
         </Link>
         <div className="flex items-center gap-3">
           {isLoggedIn ? (
