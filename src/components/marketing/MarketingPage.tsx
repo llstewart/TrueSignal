@@ -12,8 +12,8 @@ interface MarketingPageProps {
 
 const faqItems = [
   {
-    q: 'What is TrueSignal?',
-    a: 'TrueSignal scans Google Business Profiles in any market and analyzes key GMB signals — like review response rates, owner activity, and local pack rankings — to help SEO agencies find prospects who actually need their services.',
+    q: 'What is Scoutblind?',
+    a: 'Scoutblind scans Google Business Profiles in any market and analyzes key GMB signals — like review response rates, owner activity, and local pack rankings — to help SEO agencies find prospects who actually need their services.',
   },
   {
     q: 'How do credits work?',
@@ -21,7 +21,7 @@ const faqItems = [
   },
   {
     q: 'Is the data accurate?',
-    a: 'TrueSignal employs high-performance algorithms that integrate real-time GMB data with the same analytical methodologies used by SEO experts. Our system processes complex signals—like review trends and response metrics—through a technical lens to provide consistent, actionable intelligence. We prioritize high-integrity data to ensure you are always working with a reliable competitive advantage.',
+    a: 'Scoutblind employs high-performance algorithms that integrate real-time GMB data with the same analytical methodologies used by SEO experts. Our system processes complex signals—like review trends and response metrics—through a technical lens to provide consistent, actionable intelligence. We prioritize high-integrity data to ensure you are always working with a reliable competitive advantage.',
   },
   {
     q: 'Can I export my data?',
@@ -250,7 +250,7 @@ export function MarketingPage({ onSignIn, onSignUp }: MarketingPageProps) {
             Built for GMB SEO Agencies
           </h2>
           <p className="text-sm text-zinc-500 text-center mb-8">
-            Whether you&apos;re solo or scaling, TrueSignal fits your workflow
+            Whether you&apos;re solo or scaling, Scoutblind fits your workflow
           </p>
 
           <div className="grid md:grid-cols-3 gap-6">
@@ -452,7 +452,7 @@ export function MarketingPage({ onSignIn, onSignUp }: MarketingPageProps) {
             </svg>
           </button>
           <p className="mt-4 text-xs text-zinc-600">
-            Join hundreds of SEO professionals already using TrueSignal
+            Join hundreds of SEO professionals already using Scoutblind
           </p>
         </div>
       </section>

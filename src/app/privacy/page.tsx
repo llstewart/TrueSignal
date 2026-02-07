@@ -1,8 +1,8 @@
 import { MarketingLayout } from '@/components/marketing/MarketingLayout';
 
 export const metadata = {
-  title: 'Privacy Policy - TrueSignal',
-  description: 'How TrueSignal collects, uses, and protects your data.',
+  title: 'Privacy Policy - Scoutblind',
+  description: 'How Scoutblind collects, uses, and protects your data.',
 };
 
 export default function PrivacyPage() {
@@ -15,7 +15,7 @@ export default function PrivacyPage() {
         <div className="space-y-8 text-sm text-zinc-400 leading-relaxed">
           <section>
             <h2 className="text-lg font-semibold text-white mb-3">1. Information We Collect</h2>
-            <p className="mb-3">When you use TrueSignal, we collect the following information:</p>
+            <p className="mb-3">When you use Scoutblind, we collect the following information:</p>
             <ul className="list-disc list-inside space-y-1.5 text-zinc-500">
               <li><span className="text-zinc-400">Account information:</span> email address, full name, and password (or Google OAuth credentials)</li>
               <li><span className="text-zinc-400">Search queries:</span> the niche and location parameters you submit when running searches</li>
@@ -28,7 +28,7 @@ export default function PrivacyPage() {
           <section>
             <h2 className="text-lg font-semibold text-white mb-3">2. How We Use Your Data</h2>
             <ul className="list-disc list-inside space-y-1.5 text-zinc-500">
-              <li>Providing and operating the TrueSignal service</li>
+              <li>Providing and operating the Scoutblind service</li>
               <li>Processing your searches and delivering results</li>
               <li>Managing your account, credits, and subscriptions</li>
               <li>Sending transactional emails (account verification, password resets)</li>
@@ -39,7 +39,7 @@ export default function PrivacyPage() {
 
           <section>
             <h2 className="text-lg font-semibold text-white mb-3">3. Third-Party Services</h2>
-            <p className="mb-3">We use the following third-party services to operate TrueSignal:</p>
+            <p className="mb-3">We use the following third-party services to operate Scoutblind:</p>
             <ul className="list-disc list-inside space-y-1.5 text-zinc-500">
               <li><span className="text-zinc-400">Supabase:</span> authentication, database storage, and user management</li>
               <li><span className="text-zinc-400">Stripe:</span> payment processing and subscription management</li>
@@ -88,7 +88,7 @@ export default function PrivacyPage() {
           <section>
             <h2 className="text-lg font-semibold text-white mb-3">8. Changes to This Policy</h2>
             <p>
-              We may update this Privacy Policy from time to time. We will notify you of significant changes by posting a notice on the website or sending an email. Continued use of TrueSignal after changes constitutes acceptance of the updated policy.
+              We may update this Privacy Policy from time to time. We will notify you of significant changes by posting a notice on the website or sending an email. Continued use of Scoutblind after changes constitutes acceptance of the updated policy.
             </p>
           </section>
 
@@ -96,8 +96,8 @@ export default function PrivacyPage() {
             <h2 className="text-lg font-semibold text-white mb-3">9. Contact Us</h2>
             <p>
               If you have questions about this Privacy Policy or your data, please contact us at{' '}
-              <a href="mailto:support@truesignal.io" className="text-violet-400 hover:text-violet-300">
-                support@truesignal.io
+              <a href="mailto:support@scoutblind.com" className="text-violet-400 hover:text-violet-300">
+                support@scoutblind.com
               </a>{' '}
               or through our{' '}
               <a href="/contact" className="text-violet-400 hover:text-violet-300">

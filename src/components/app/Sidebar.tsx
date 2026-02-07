@@ -51,7 +51,7 @@ export function Sidebar({
       <div className="flex items-center justify-between p-4 border-b border-zinc-800/50">
         {!isCollapsed && (
           <span className="text-lg font-bold text-white">
-            TrueSignal<span className="text-violet-500">.</span>
+            Scoutblind<span className="text-violet-500">.</span>
           </span>
         )}
         <button

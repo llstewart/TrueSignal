@@ -6,8 +6,8 @@ import { MarketingLayout } from '@/components/marketing/MarketingLayout';
 
 const faqItems = [
   {
-    q: 'What is TrueSignal?',
-    a: 'TrueSignal is a prospecting tool for SEO agencies. It scans Google Business Profiles in any market and analyzes key GMB signals — like review response rates, owner activity, profile completeness, and local pack rankings — to help you find businesses that actually need your SEO services.',
+    q: 'What is Scoutblind?',
+    a: 'Scoutblind is a prospecting tool for SEO agencies. It scans Google Business Profiles in any market and analyzes key GMB signals — like review response rates, owner activity, profile completeness, and local pack rankings — to help you find businesses that actually need your SEO services.',
   },
   {
     q: 'How do credits work?',
@@ -23,11 +23,11 @@ const faqItems = [
   },
   {
     q: 'Is the data accurate?',
-    a: 'TrueSignal employs high-performance algorithms that integrate real-time GMB data with the same analytical methodologies used by SEO experts. Our system processes complex signals—like review trends and response metrics—through a technical lens to provide consistent, actionable intelligence. We prioritize high-integrity data to ensure you are always working with a reliable competitive advantage.',
+    a: 'Scoutblind employs high-performance algorithms that integrate real-time GMB data with the same analytical methodologies used by SEO experts. Our system processes complex signals—like review trends and response metrics—through a technical lens to provide consistent, actionable intelligence. We prioritize high-integrity data to ensure you are always working with a reliable competitive advantage.',
   },
   {
     q: 'How does pricing work?',
-    a: 'TrueSignal offers a free tier (5 credits), a Starter plan ($29/mo for 50 credits), and a Pro plan ($79/mo for 200 credits). All plans include full signal analysis, CSV export, and search history. Subscriptions are billed monthly via Stripe and can be canceled anytime.',
+    a: 'Scoutblind offers a free tier (5 credits), a Starter plan ($29/mo for 50 credits), and a Pro plan ($79/mo for 200 credits). All plans include full signal analysis, CSV export, and search history. Subscriptions are billed monthly via Stripe and can be canceled anytime.',
   },
   {
     q: 'Can I export my data?',
@@ -51,7 +51,7 @@ export default function FaqPage() {
       <div className="max-w-2xl mx-auto px-4 py-12 md:py-16">
         <h1 className="text-2xl md:text-3xl font-bold text-white mb-2">Frequently Asked Questions</h1>
         <p className="text-sm text-zinc-500 mb-10">
-          Everything you need to know about TrueSignal.
+          Everything you need to know about Scoutblind.
         </p>
 
         <div className="space-y-3">

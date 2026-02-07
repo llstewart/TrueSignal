@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
             price_data: {
               currency: 'usd',
               product_data: {
-                name: `TrueSignal ${tierConfig.name} Plan`,
+                name: `Scoutblind ${tierConfig.name} Plan`,
                 description: `${tierConfig.credits} analyses per month`,
               },
               unit_amount: priceInCents,
@@ -119,7 +119,7 @@ export async function POST(request: NextRequest) {
               currency: 'usd',
               product_data: {
                 name: packConfig.name,
-                description: `${packConfig.credits} analysis credits for TrueSignal`,
+                description: `${packConfig.credits} analysis credits for Scoutblind`,
               },
               unit_amount: packConfig.price * 100,
             },
